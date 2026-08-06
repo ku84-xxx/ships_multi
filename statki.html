@@ -1094,16 +1094,18 @@
     });
   }
 
-  function attemptConnect(peer, id, onOpen) {
+  function attemptConnect(peer, id, onOpen, _try) {
+    const attempt = _try || 0;
     const conn = peer.connect(id);
-    let retried = false;
     conn.on("open", () => { dbg("kanał OTWARTY"); mp.conn = conn; onOpen(conn); });
     conn.on("error", err => {
       dbg("błąd kanału:", err.type, err.message || "");
-      if (err.type === "negotiation-failed" && !retried && !mp.connected()) {
-        retried = true;
-        lanStatusEl.textContent = "Negocjacja P2P nie powiodła się — ponawiam…";
-        setTimeout(() => { if (mp.peer === peer && !mp.connected()) attemptConnect(peer, id, onOpen); }, 1500);
+      if (err.type === "negotiation-failed" && attempt < 3 && !mp.connected()) {
+        const delay = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s
+        lanStatusEl.textContent = "Negocjacja P2P nie powiodła się — próba " + (attempt + 2) + "/4…";
+        setTimeout(() => { if (mp.peer === peer && !mp.connected()) attemptConnect(peer, id, onOpen, attempt + 1); }, delay);
+      } else if (err.type === "negotiation-failed") {
+        lanStatusEl.textContent = "Po 4 próbach nie udało się nawiązać połączenia. Spróbuj ponownie lub sprawdź łącze.";
       } else {
         lanStatusEl.textContent = "Nie znaleziono pokoju. Sprawdź ID.";
       }
