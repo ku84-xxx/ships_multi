@@ -59,7 +59,7 @@ async function main() {
     format: { comments: false },
   });
   if (result.error) throw result.error;
-  const js = result.code;
+  const js = result.code.replace(/<\/script/gi, "<\\/script");
 
   let out = src.replace(/<style>[\s\S]*?<\/style>/, "<style>" + css + "</style>");
   const scriptStart = out.indexOf(appScript[0]);
