@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statki - Gra w Okręty</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ocean: #0b3a5a;
+    --ocean-light: #0f4c75;
+    --water: #1b6ca8;
+    --water-alt: #17618f;
+    --ship: #7a8a94;
+    --ship-dark: #5c6b74;
+    --hit: #e63946;
+    --miss: #d9e2ea;
+    --gold: #f4a261;
+    --text: #eaf2f8;
+  }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(160deg, #06202f 0%, var(--ocean) 50%, #04161f 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    font-size: 2rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin: 8px 0 4px;
+    text-shadow: 0 2px 8px rgba(0,0,0,.5);
+    color: #fff;
+  }
+  h1 span { color: var(--gold); }
+
+  .subtitle {
+    color: #9fc2d9;
+    margin-bottom: 14px;
+    font-size: .9rem;
+  }
+
+  #status {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    padding: 10px 22px;
+    border-radius: 999px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    text-align: center;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  }
+  #status .lamp {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--gold);
+    display: inline-block;
+  }
+  #status.playing .lamp { background: #7ae582; }
+  #status.won .lamp { background: #7ae582; box-shadow: 0 0 10px #7ae582; }
+  #status.lost .lamp { background: var(--hit); box-shadow: 0 0 10px var(--hit); }
+
+  .boards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .board-wrap { text-align: center; }
+
+  .board-title {
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    color: #bcd7ea;
+  }
+  .board-wrap.player .board-title { color: var(--gold); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(11, var(--cell, 34px));
+    grid-auto-rows: var(--cell, 34px);
+    gap: 2px;
+    padding: 8px;
+    background: rgba(0,0,0,.35);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: inset 0 0 24px rgba(0,0,0,.4);
+    user-select: none;
+  }
+
+  .corner {}
+  .label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75rem;
+    font-weight: 700;
+    color: #a9c6dc;
+  }
+
+  .cell {
+    position: relative;
+    background: radial-gradient(circle at 30% 30%, var(--water-alt), var(--water));
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform .05s, background .15s, box-shadow .15s;
+  }
+  .cell:hover { transform: scale(1.08); box-shadow: 0 0 8px rgba(255,255,255,.25); }
+  .cell:disabled, .cell.blocked { cursor: default; transform: none; box-shadow: none; }
+
+  .cell.ship { background: linear-gradient(160deg, var(--ship), var(--ship-dark)); }
+  .cell.ghost-ok { background: linear-gradient(160deg, #4a7a4a, #2f5a2f); }
+  .cell.ghost-bad { background: linear-gradient(160deg, #7a4a4a, #5a2f2f); }
+
+  .cell.hit::after, .cell.sunk::after {
+    content: "✕";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(0,0,0,.8);
+  }
+  .cell.hit { background: var(--hit) !important; }
+  .cell.sunk { background: #52212a !important; }
+  .cell.sunk::after { content: "✕"; }
+
+  .cell.miss::after {
+    content: "•";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    color: var(--miss);
+  }
+  .cell.miss { background: rgba(255,255,255,.12); }
+  .cell.enemy:hover:not(:disabled):not(.hit):not(.miss):not(.sunk) {
+    background: var(--gold);
+    box-shadow: 0 0 10px var(--gold);
+  }
+
+  .controls {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 720px;
+  }
+
+  .btn {
+    background: linear-gradient(180deg, var(--ocean-light), #0a2f4a);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.25);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: .95rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: .5px;
+    transition: transform .1s, box-shadow .15s, background .15s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,.4); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.primary { background: linear-gradient(180deg, var(--gold), #d97c2e); color: #1a1a1a; }
+  .btn.danger { background: linear-gradient(180deg, #b23c48, #7d222c); }
+
+  .mode-switch { display: flex; gap: 10px; margin-bottom: 12px; }
+  .mode-switch .btn.active { background: linear-gradient(180deg, var(--gold), #d97c2e); color: #1a1a1a; }
+
+  .lan-panel {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    max-width: 640px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .lan-box { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+  .lan-sep { color: #8fb4cc; font-size: .8rem; }
+  #lan-input {
+    padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); color: var(--text); font-size: .95rem; min-width: 180px;
+  }
+  #lan-status { font-size: .9rem; color: #bcd7ea; text-align: center; }
+  #lan-status b { color: var(--gold); }
+  .copy-btn {
+    background: none; border: 1px solid var(--gold); color: var(--gold);
+    border-radius: 6px; padding: 2px 8px; cursor: pointer; margin-left: 6px; font-size: .8rem;
+  }
+  .copy-btn:hover { background: rgba(244,162,97,.2); }
+  .ok-note { color: #7ae582; font-size: .85rem; margin-left: 6px; }
+
+  [hidden] { display: none !important; }
+
+  .roster {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; justify-content: center;
+    max-width: 820px;
+  }
+  .roster .chip {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: .85rem;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .roster .chip .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; flex: none; }
+  .roster .chip.teamA { border-color: #7ae582; }
+  .roster .chip.teamB { border-color: var(--gold); }
+  .roster .chip.teamA .dot { background: #7ae582; }
+  .roster .chip.teamB .dot { background: var(--gold); }
+  .roster .chip.ready::after { content: " ✓"; color: #7ae582; }
+  .roster .chip.me { box-shadow: 0 0 0 2px var(--gold); }
+  .roster .chip .sub { opacity: .65; font-size: .75rem; }
+
+  #nick-input {
+    padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); color: var(--text); font-size: .95rem; width: 110px;
+  }
+  .slot-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+  .slot-btn { padding: 7px 12px; font-size: .85rem; }
+  .slot-btn.selected { background: linear-gradient(180deg, var(--gold), #d97c2e); color: #1a1a1a; border-color: var(--gold); }
+  .slot-btn.taken { opacity: .35; cursor: default; }
+  .board-tag { font-size: .8rem; color: #9fc2d9; margin-bottom: 4px; letter-spacing: 1px; }
+  .board-tag.enemy-tag { color: #e08b8b; }
+  .board-tag.ally-tag { color: #7ae582; }
+  .board-tag.me-tag { color: var(--gold); }
+
+  .ship-palette {
+    margin: 12px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .ship-token {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: .85rem;
+    transition: all .15s;
+  }
+  .ship-token:hover { border-color: var(--gold); }
+  .ship-token.selected { border-color: var(--gold); background: rgba(244,162,97,.18); box-shadow: 0 0 8px rgba(244,162,97,.5); }
+  .ship-token.placed { opacity: .35; cursor: default; }
+  .ship-token .seg {
+    width: 16px; height: 16px; border-radius: 3px;
+    background: linear-gradient(160deg, var(--ship), var(--ship-dark));
+  }
+  .kbd {
+    font-size: .75rem; color: #8fb4cc;
+    border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: 1px 5px;
+  }
+
+  footer { margin-top: 20px; font-size: .75rem; color: #6f93aa; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>Sta<span>tki</span></h1>
+<div class="subtitle" id="subtitle">Gra w okręty &nbsp;•&nbsp; Ty vs. Komputer</div>
+
+<div class="mode-switch">
+  <button id="mode-sp" class="btn active">1 gracz (komputer)</button>
+  <button id="mode-mp" class="btn">2 graczy online</button>
+  <button id="mode-2v2" class="btn">2v2 drużynowo online</button>
+</div>
+
+<div id="lan-panel" class="lan-panel" hidden>
+  <div class="lan-box">
+    <span class="lan-sep">Nick:</span>
+    <input id="nick-input" type="text" placeholder="Nick" autocomplete="off" spellcheck="false" value="Gracz">
+    <button id="btn-host" class="btn">Utwórz grę</button>
+    <span class="lan-sep">lub</span>
+    <input id="lan-input" type="text" placeholder="Wklej ID pokoju" autocomplete="off" spellcheck="false">
+    <button id="btn-join" class="btn">Dołącz</button>
+    <button id="btn-leave" class="btn danger" hidden>Rozłącz</button>
+  </div>
+  <div class="slot-pick" id="slot-pick" hidden>
+    <span class="lan-sep">Stanowisko (2v2):</span>
+    <button class="btn slot-btn" data-slot="A2">A2 · Drużyna A</button>
+    <button class="btn slot-btn" data-slot="B1">B1 · Drużyna B</button>
+    <button class="btn slot-btn" data-slot="B2">B2 · Drużyna B</button>
+  </div>
+  <div class="lan-box">
+    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#8fb4cc;font-size:.8rem">
+      <input type="checkbox" id="lan-debug"> Debug (logi połączenia)
+    </label>
+  </div>
+  <div id="lan-status"></div>
+  <div id="lan-debug-out" style="color:#ffb86b;font-size:.8rem;min-height:1em"></div>
+</div>
+
+<div id="roster22" class="roster" hidden></div>
+
+<div id="status"><span class="lamp"></span><span id="status-text">Ustaw swoją flotę…</span></div>
+
+<div id="palette" class="ship-palette"></div>
+
+<div class="boards" id="boards2">
+  <div class="board-wrap player">
+    <div class="board-title" id="player-title">Twoja flota</div>
+    <div id="player-grid" class="grid"></div>
+  </div>
+  <div class="board-wrap enemy">
+    <div class="board-title" id="enemy-title">Flota wroga</div>
+    <div id="enemy-grid" class="grid"></div>
+  </div>
+</div>
+
+<div class="boards" id="boards22" hidden>
+  <div class="board-wrap">
+    <div class="board-title" id="title-own">Twoja plansza</div>
+    <div id="grid-own" class="grid"></div>
+  </div>
+  <div class="board-wrap">
+    <div class="board-title" id="title-ally">Partner</div>
+    <div id="grid-ally" class="grid"></div>
+  </div>
+  <div class="board-wrap">
+    <div class="board-title" id="title-en1">Przeciwnik 1</div>
+    <div id="grid-en1" class="grid"></div>
+  </div>
+  <div class="board-wrap">
+    <div class="board-title" id="title-en2">Przeciwnik 2</div>
+    <div id="grid-en2" class="grid"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="btn-random" class="btn">Losuj flotę</button>
+  <button id="btn-rotate" class="btn">Obróć (R)</button>
+  <button id="btn-start" class="btn primary">Start</button>
+  <button id="btn-new" class="btn danger">Nowa gra</button>
+</div>
+
+<footer>Klikaj na siatkę, aby ustawić statki • <span class="kbd">R</span> — obrót • klikanie na pola wroga = strzał</footer>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const SIZE = 10;
+  const SHIPS = [
+    { name: "Lotniskowiec", size: 5, count: 1 },
+    { name: "Pancernik",    size: 4, count: 1 },
+    { name: "Krążownik",    size: 3, count: 1 },
+    { name: "Niszczyciel",  size: 2, count: 2 },
+  ];
+
+  const state = {
+    phase: "placing",          // placing | playing | ended
+    playerShips: [],           // [{cells:[{r,c}], hits:Set}]
+    enemyShips: [],
+    enemyShots: [],            // shots fired by player on enemy board: {r,c,hit}
+    enemyAttacks: [],          // shots fired by enemy on player board: {r,c,hit}
+    placedToken: null,         // ship token being placed
+    rotation: 0,               // 0 = horizontal, 1 = vertical
+    ghost: null,               // {r, c, cells, valid} during hover
+    myTurn: true,
+    playerTurnLocked: false,
+    pending: [],               // enemy AI target queue
+  };
+
+  const mp = {
+    mode: "sp",          // "sp" | "mp" | "2v2"
+    peer: null,
+    conn: null,
+    isHost: false,
+    role: null,          // "A" (host) | "B" (guest) for 2-player; player id for 2v2
+    name: "",
+    oppName: "",
+    oppFleet: null,      // opponent fleet layout received at game end (2-player)
+    ready: false,
+    oppReady: false,
+    began: false,
+    sunkCells: new Set(),
+    sunkCount: 0,
+  };
+
+  const $ = id => document.getElementById(id);
+  const playerGridEl = $("player-grid");
+  const enemyGridEl  = $("enemy-grid");
+  const paletteEl    = $("palette");
+  const statusEl     = $("status");
+  const statusText   = $("status-text");
+
+  const audio = new (window.AudioContext || window.webkitAudioContext)();
+  function beep(freq, dur = 0.08, type = "sine", vol = 0.12) {
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + dur);
+  }
+  const sndHit  = () => beep(220, .12, "square", .18);
+  const sndMiss = () => beep(180, .08, "sine", .06);
+  const sndSunk = () => { beep(160,.15); setTimeout(()=>beep(110,.25),120); };
+  const sndShot = () => beep(340, .04, "triangle", .05);
+
+  // ---------- board rendering ----------
+  function renderBoard(el, isEnemy) {
+    el.innerHTML = "";
+    el.style.setProperty("--cell", isEnemy ? "32px" : "32px");
+    el.appendChild(labelEl(""));                      // corner
+    for (let c = 0; c < SIZE; c++) el.appendChild(labelEl(String.fromCharCode(65 + c)));
+    for (let r = 0; r < SIZE; r++) {
+      el.appendChild(labelEl(String(r + 1)));
+      for (let c = 0; c < SIZE; c++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.r = r; cell.dataset.c = c;
+        if (isEnemy) cell.classList.add("enemy");
+        el.appendChild(cell);
+      }
+    }
+  }
+
+  function labelEl(t) { const d = document.createElement("div"); d.className = "label"; d.textContent = t; return d; }
+
+  function paintBoards() {
+    if (mp.mode === "2v2") { paint2v2Boards(); return; }
+    const pcells = playerGridEl.querySelectorAll(".cell");
+    for (const cell of pcells) {
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      const ship = shipAt(state.playerShips, r, c);
+      const atk = state.enemyAttacks.find(a => a.r === r && a.c === c);
+      cell.className = "cell" + (ship ? " ship" : "");
+      if (atk && atk.hit) {
+        cell.classList.add(ship && ship.sunk() ? "sunk" : "hit");
+      } else if (atk) {
+        cell.classList.add("miss");
+      }
+    }
+    // enemy board shows only hits/misses/sunk
+    const ecells = enemyGridEl.querySelectorAll(".cell");
+    for (const cell of ecells) {
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      const sh = shipAt(state.enemyShips, r, c);
+      const shot = state.enemyShots.find(s => s.r === r && s.c === c);
+      cell.className = "cell enemy";
+      if (shot && shot.hit) {
+        const isSunk = mp.mode === "mp" ? mp.sunkCells.has(r + "," + c) : !!(sh && sh.sunk());
+        cell.classList.add(isSunk ? "sunk" : "hit");
+      } else if (shot) {
+        cell.classList.add("miss");
+      }
+    }
+    updatePalette();
+  }
+
+  function shipAt(ships, r, c) {
+    return ships.find(s => s.cells.some(p => p.r === r && p.c === c)) || null;
+  }
+
+  function ownShips() { return mp.mode === "2v2" ? state22.myShips : state.playerShips; }
+  function ownGridEl() { return mp.mode === "2v2" ? $("grid-own") : playerGridEl; }
+  function placingPhase() { return mp.mode === "2v2" ? state22.phase : state.phase; }
+
+  // ---------- ship model ----------
+  function makeShip(cells) {
+    const hitSet = new Set();
+    return {
+      cells,
+      hitSet,
+      hit(r, c) { hitSet.add(r + "," + c); },
+      sunk() { return cells.length > 0 && cells.every(p => hitSet.has(p.r + "," + p.c)); },
+    };
+  }
+
+  // ---------- placement ----------
+  function buildShipsList() {
+    const list = [];
+    SHIPS.forEach((s, i) => { for (let k = 0; k < s.count; k++) list.push({ ...s, uid: i + "_" + k }); });
+    return list;
+  }
+
+  const placement = {
+    remaining: buildShipsList(),
+    selectedIdx: 0,
+  };
+
+  function updatePalette() {
+    paletteEl.innerHTML = "";
+    placement.remaining.forEach((ship, idx) => {
+      const token = document.createElement("div");
+      token.className = "ship-token" + (ship.placed ? " placed" : "") + (idx === placement.selectedIdx && !ship.placed ? " selected" : "");
+      token.title = ship.name + " (" + ship.size + " pól)";
+      for (let i = 0; i < ship.size; i++) { const seg = document.createElement("div"); seg.className = "seg"; token.appendChild(seg); }
+      const nm = document.createElement("span"); nm.textContent = ship.name; token.appendChild(nm);
+      if (!ship.placed) token.addEventListener("click", () => { placement.selectedIdx = idx; updatePalette(); });
+      paletteEl.appendChild(token);
+    });
+  }
+
+  function cellsFor(r, c, size, rotation) {
+    const cells = [];
+    if (rotation === 0) { for (let i = 0; i < size; i++) cells.push({ r, c: c + i }); }
+    else { for (let i = 0; i < size; i++) cells.push({ r: r + i, c }); }
+    return cells;
+  }
+
+  function isValidPlacement(cells, ships) {
+    if (cells.some(p => p.r < 0 || p.r >= SIZE || p.c < 0 || p.c >= SIZE)) return false;
+    for (const s of ships) for (const a of s.cells) for (const b of cells) {
+      if (a.r === b.r && a.c === b.c) return false;
+      if (Math.abs(a.r - b.r) <= 1 && Math.abs(a.c - b.c) <= 1) return false; // adjacency rule
+    }
+    return true;
+  }
+
+  function tryPlace(r, c) {
+    const ship = placement.remaining[placement.selectedIdx];
+    if (!ship || ship.placed) return false;
+    const ships = ownShips();
+    const cells = cellsFor(r, c, ship.size, state.rotation);
+    if (!isValidPlacement(cells, ships)) return false;
+    ships.push(makeShip(cells));
+    ship.placed = true;
+    advanceSelection();
+    paintBoards();
+    beep(520, .06);
+    return true;
+  }
+
+  function advanceSelection() {
+    const next = placement.remaining.findIndex((s, i) => !s.placed && i > placement.selectedIdx);
+    placement.selectedIdx = next !== -1 ? next : placement.remaining.findIndex(s => !s.placed);
+    updatePalette();
+  }
+
+  function clearPlacement() {
+    ownShips().length = 0;
+    placement.remaining.forEach(s => delete s.placed);
+    placement.selectedIdx = 0;
+    state.ghost = null;
+  }
+
+  function randomPlacement() {
+    clearPlacement();
+    const ships = ownShips();
+    for (const ship of placement.remaining) {
+      let placed = false;
+      let guard = 0;
+      while (!placed && guard++ < 2000) {
+        const rotation = Math.random() < 0.5 ? 0 : 1;
+        const r = Math.floor(Math.random() * SIZE);
+        const c = Math.floor(Math.random() * SIZE);
+        const cells = cellsFor(r, c, ship.size, rotation);
+        if (isValidPlacement(cells, ships)) {
+          ships.push(makeShip(cells));
+          ship.placed = true;
+          placed = true;
+        }
+      }
+      if (!placed) { randomPlacement(); return; }
+    }
+    advanceSelection();
+  }
+
+  // ---------- hover ghost ----------
+  function bindPlacementBoard(gridEl) {
+    gridEl.addEventListener("mouseover", e => {
+      const cell = e.target.closest(".cell"); if (!cell || placingPhase() !== "placing") return;
+      const ship = placement.remaining[placement.selectedIdx];
+      if (!ship || ship.placed) return;
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      const cells = cellsFor(r, c, ship.size, state.rotation);
+      const valid = isValidPlacement(cells, ownShips());
+      state.ghost = { r, c, cells, valid };
+      paintBoards();
+      for (const p of cells) {
+        if (p.r < 0 || p.r >= SIZE || p.c < 0 || p.c >= SIZE) continue;
+        const el = gridEl.querySelector(`.cell[data-r="${p.r}"][data-c="${p.c}"]`);
+        if (el) el.classList.add(valid ? "ghost-ok" : "ghost-bad");
+      }
+    });
+
+    gridEl.addEventListener("mouseleave", () => { state.ghost = null; paintBoards(); });
+
+    gridEl.addEventListener("click", e => {
+      const cell = e.target.closest(".cell");
+      if (!cell || placingPhase() !== "placing") return;
+      const ship = placement.remaining[placement.selectedIdx];
+      if (!ship || ship.placed) return;
+      tryPlace(+cell.dataset.r, +cell.dataset.c);
+    });
+  }
+
+  // ---------- enemy fleet generation ----------
+  function generateEnemyFleet() {
+    const ships = [];
+    for (const s of SHIPS) for (let k = 0; k < s.count; k++) {
+      let placed = false, guard = 0;
+      while (!placed && guard++ < 2000) {
+        const rotation = Math.random() < 0.5 ? 0 : 1;
+        const r = Math.floor(Math.random() * SIZE);
+        const c = Math.floor(Math.random() * SIZE);
+        const cells = cellsFor(r, c, s.size, rotation);
+        if (isValidPlacement(cells, ships)) { ships.push(makeShip(cells)); placed = true; }
+      }
+    }
+    return ships;
+  }
+
+  // ---------- shooting ----------
+  function canShoot(r, c) {
+    if (mp.mode === "mp") {
+      return state.phase === "playing" && state.myTurn && mp.connected() &&
+        !state.enemyShots.some(s => s.r === r && s.c === c);
+    }
+    return state.phase === "playing" && state.myTurn &&
+      !state.enemyShots.some(s => s.r === r && s.c === c);
+  }
+
+  function shootAtEnemy(r, c) {
+    if (!canShoot(r, c)) return;
+    if (mp.mode === "mp") {
+      state.myTurn = false;
+      mp.send({ type: "shot", r, c });
+      sndShot();
+      setStatus("Strzał wysłany — czekaj na przeciwnika…", "playing");
+      return;
+    }
+    state.myTurn = false;
+    const ship = shipAt(state.enemyShips, r, c);
+    const hit = !!ship;
+    state.enemyShots.push({ r, c, hit });
+    if (hit) {
+      ship.hit(r, c);
+      sndHit();
+      if (ship.sunk()) { sndSunk(); setStatus("Zatopiłeś " + nameOf(ship.size) + "! Strzelaj dalej", "playing"); }
+      else setStatus("Trafiony! Strzelaj dalej", "playing");
+    } else {
+      sndMiss();
+      setStatus("Pudło — teraz kolej wroga", "playing");
+    }
+    paintBoards();
+
+    if (state.enemyShips.every(s => s.sunk())) { endGame(true); return; }
+    if (hit) {
+      state.myTurn = true;   // hit = free shot
+    } else {
+      setTimeout(enemyTurn, 700);
+    }
+  }
+
+  function nameOf(size) {
+    const s = SHIPS.find(x => x.size === size);
+    return s ? s.name.toLowerCase() : "statek";
+  }
+
+  // ---------- enemy AI ----------
+  function enemyTurn() {
+    if (state.phase !== "playing") return;
+    const target = pickEnemyTarget();
+    const ship = shipAt(state.playerShips, target.r, target.c);
+    const hit = !!ship;
+    state.enemyAttacks.push({ r: target.r, c: target.c, hit });
+    if (hit) {
+      ship.hit(target.r, target.c);
+      if (!ship.sunk()) {
+        enqueueNeighbors(target.r, target.c);
+      } else {
+        state.pending = state.pending.filter(p => !ship.cells.some(c => c.r === p.r && c.c === p.c));
+      }
+      sndHit();
+    } else {
+      sndMiss();
+    }
+    flashShot(target.r, target.c, hit);
+    paintBoards();
+    setStatus(hit ? (ship.sunk() ? "Wróg zatopił twój okręt!" : "Wróg trafił!") : "Wróg strzelał — pudło", "playing");
+
+    if (state.playerShips.every(s => s.sunk())) { endGame(false); return; }
+    if (!hit) {
+      state.myTurn = true;
+      setStatus("Twoja kolej — strzelaj!", "playing");
+    } else {
+      setTimeout(enemyTurn, 600);
+    }
+  }
+
+  function pickEnemyTarget() {
+    const hitCells = state.playerShips.flatMap(s => [...s.hitSet].map(k => {
+      const [r, c] = k.split(",").map(Number); return { r, c, ship: s };
+    }));
+    // cells already shot + cells where no ship can be (sunk ships and their 8-neighbour ring)
+    const deadSet = new Set();
+    state.enemyAttacks.forEach(s => deadSet.add(s.r + "," + s.c));
+    for (const s of state.playerShips) {
+      if (!s.sunk()) continue;
+      for (const p of s.cells) {
+        deadSet.add(p.r + "," + p.c);
+        for (const n of neighbors8(p.r, p.c)) deadSet.add(n.r + "," + n.c);
+      }
+    }
+    // collect all neighbours of hit cells on unsunk ships
+    const candidates = [];
+    const seen = new Set();
+    for (const h of hitCells) {
+      if (h.ship.sunk()) continue;
+      for (const n of neighbors(h.r, h.c)) {
+        const k = n.r + "," + n.c;
+        if (!deadSet.has(k) && !seen.has(k)) { seen.add(k); candidates.push(n); }
+      }
+    }
+    if (candidates.length) return candidates[Math.floor(Math.random() * candidates.length)];
+
+    // random search over remaining possible cells
+    const free = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (!deadSet.has(r + "," + c)) free.push({ r, c });
+    }
+    return free.length ? free[Math.floor(Math.random() * free.length)] : { r: 0, c: 0 };
+  }
+
+  function enqueueNeighbors(r, c) {
+    for (const n of neighbors(r, c)) {
+      const k = n.r + "," + n.c;
+      if (!state.enemyAttacks.some(s => s.r === n.r && s.c === n.c)) state.pending.push(n);
+    }
+  }
+
+  function neighbors(r, c) {
+    return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([rr,cc]) => rr>=0 && rr<SIZE && cc>=0 && cc<SIZE)
+      .map(([rr,cc]) => ({ r: rr, c: cc }));
+  }
+
+  function neighbors8(r, c) {
+    const out = [];
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const rr = r + dr, cc = c + dc;
+      if (rr >= 0 && rr < SIZE && cc >= 0 && cc < SIZE) out.push({ r: rr, c: cc });
+    }
+    return out;
+  }
+
+  function flashShot(r, c, hit) {
+    const el = playerGridEl.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+    if (!el) return;
+    el.style.boxShadow = hit ? "0 0 14px var(--hit)" : "0 0 8px rgba(255,255,255,.5)";
+    setTimeout(() => el.style.boxShadow = "", 500);
+  }
+
+  // ---------- flow ----------
+  function setStatus(txt, cls = "") {
+    statusEl.className = cls;
+    statusText.textContent = txt;
+  }
+
+  function startGame() {
+    if (placement.remaining.some(s => !s.placed)) { setStatus("Ustaw wszystkie okręty!", ""); return; }
+    if (mp.mode === "mp") {
+      if (!mp.connected()) { setStatus("Najpierw połącz się z przeciwnikiem!", ""); return; }
+      mp.ready = true;
+      mp.send({ type: "ready" });
+      $("btn-random").disabled = true;
+      $("btn-rotate").disabled = true;
+      paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+      setStatus("Gotów — czekam na przeciwnika…");
+      if (mp.isHost && mp.oppReady) sendBegin();
+      return;
+    }
+    state.enemyShips = generateEnemyFleet();
+    state.phase = "playing";
+    state.myTurn = true;
+    state.enemyShots = [];
+    state.enemyAttacks = [];
+    state.pending = [];
+    paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+    $("btn-random").disabled = true;
+    $("btn-rotate").disabled = true;
+    setStatus("Rozpocznij! Strzelaj w siatkę wroga", "playing");
+    paintBoards();
+  }
+
+  function endGame(playerWon) {
+    state.phase = "ended";
+    state.myTurn = false;
+    if (mp.mode === "mp") {
+      // reveal opponent's unhit ships in 2-player mode
+      mp.send({ type: "reveal", fleet: state.playerShips.map(s => s.cells.map(p => [p.r, p.c])) });
+      if (mp.oppFleet) showRevealedFleet(mp.oppFleet);
+    } else {
+      // reveal enemy ships (single-player)
+      const ecells = enemyGridEl.querySelectorAll(".cell");
+      for (const cell of ecells) {
+        const r = +cell.dataset.r, c = +cell.dataset.c;
+        if (shipAt(state.enemyShips, r, c) && !cell.classList.contains("hit") && !cell.classList.contains("miss")) {
+          cell.classList.add("ship");
+        }
+      }
+    }
+    setStatus(playerWon ? "Zwycięstwo! Zatopiłeś całą flotę wroga 🎉" : "Porażka — wróg zatopił twoją flotę", playerWon ? "won" : "lost");
+    if (playerWon) beep(600,.2); else beep(140,.4,"square",.15);
+  }
+
+  function showRevealedFleet(cells) {
+    if (!cells || !cells.length) return;
+    const set = new Set(cells.map(p => p[0] + "," + p[1]));
+    const ecells = enemyGridEl.querySelectorAll(".cell");
+    for (const cell of ecells) {
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      if (set.has(r + "," + c) && !cell.classList.contains("hit") && !cell.classList.contains("miss")) {
+        cell.classList.add("ship");
+      }
+    }
+  }
+
+  function newGame() {
+    if (mp.mode === "2v2") { resetClient22(); return; }
+    state.phase = "placing";
+    state.myTurn = true;
+    state.enemyShots = [];
+    state.enemyAttacks = [];
+    state.pending = [];
+    state.ghost = null;
+    state.rotation = 0;
+    clearPlacement();
+    state.enemyShips = [];
+    mp.ready = false;
+    mp.oppReady = false;
+    mp.began = false;
+    mp.sunkCells = new Set();
+    mp.sunkCount = 0;
+    mp.oppFleet = null;
+    $("btn-random").disabled = false;
+    $("btn-rotate").disabled = false;
+    $("btn-start").disabled = false;
+    updatePalette();
+    renderBoard(playerGridEl, false);
+    renderBoard(enemyGridEl, true);
+    setStatus("Ustaw swoją flotę…");
+  }
+
+  // ---------- multiplayer (online / PeerJS) ----------
+  const MP_TOTAL_SHIPS = SHIPS.reduce((a, s) => a + s.count, 0);
+  const lanStatusEl = $("lan-status");
+  const lanIdEl = $("lan-input");
+
+  // ── WŁASNY SERWER SYGNALIZACYJNY (PeerServer) ─────────────────────────
+  // Podaj adres swojego serwera, np. "peer-statki.onrender.com" (bez http://,
+  // bez portu — domyślnie 443/HTTPS). Jeśli zostawisz puste, gra użyje
+  // publicznej chmury peerjs.com. Adres można też nadpisać parametrem w URL:
+  //   ?peer=twoj-serwer.example.com        (port 443)
+  //   ?peer=twoj-serwer.example.com:9000   (dowolny port, np. testy lokalne)
+  const PEER_SERVER = "";
+  let debugMode = false;
+  function peerOptions() {
+    const fromUrl = new URLSearchParams(location.search).get("peer");
+    let raw = (PEER_SERVER || fromUrl || "0.peerjs.com")
+      .replace(/^https?:\/\//, "").replace(/^wss?:\/\//, "").split("/")[0];
+    let host = raw, port = 443;
+    const ci = raw.lastIndexOf(":");
+    if (ci > 0 && /^\d+$/.test(raw.slice(ci + 1))) {
+      host = raw.slice(0, ci);
+      port = +raw.slice(ci + 1);
+    }
+    const iceServers = [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun.cloudflare.com:3478" },
+    ];
+    const turn = new URLSearchParams(location.search).get("turn");
+    if (turn) {
+      let t = turn, username = "", credential = "";
+      const at = t.lastIndexOf("@");
+      if (at > 0) {
+        const up = t.slice(0, at);
+        const colon = up.indexOf(":");
+        if (colon > 0) { username = up.slice(0, colon); credential = up.slice(colon + 1); }
+        t = t.slice(at + 1);
+      }
+      if (!/^turn:/.test(t)) t = "turn:" + t;
+      iceServers.push({ urls: t, username, credential });
+    } else {
+      // Domyślny darmowy relay (openrelay.metered.ca) — pozwala połączyć się
+      // przez NAT, gdy bezpośrednie P2P zawiedzie (negotiation-failed).
+      iceServers.push(
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+      );
+    }
+    return { host, port, debug: debugMode ? 2 : 0, config: { iceServers } };
+  }
+  function dbg() {
+    if (!debugMode) return;
+    const msg = [...arguments].map(String).join(" ");
+    console.log("[debug]", msg);
+    const el = $("lan-debug-out");
+    if (el) {
+      el.textContent = msg;
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.textContent = ""; }, 8000);
+    }
+  }
+  function initDebug() {
+    const el = $("lan-debug");
+    debugMode = !!new URLSearchParams(location.search).get("debug") || (el ? el.checked : false);
+    if (el) {
+      el.checked = debugMode;
+      el.addEventListener("change", () => { debugMode = el.checked; });
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
+  let selectedSlot = "B1";   // 2v2 guest slot choice
+  let pendingJoin = false;   // guest sent join22, awaiting assignment
+
+  mp.send = function (data) { if (this.conn && this.conn.open) this.conn.send(data); };
+  mp.connected = function () { return !!this.conn && this.conn.open; };
+
+  function genRoomId() {
+    const arr = new Uint8Array(6);
+    crypto.getRandomValues(arr);
+    let hex = "";
+    for (const b of arr) hex += b.toString(16).padStart(2, "0");
+    return "statki-" + hex;
+  }
+
+  function showRoomId(id, hint) {
+    lanStatusEl.innerHTML = "";
+    const box = document.createElement("div");
+    box.innerHTML = "Twój identyfikator pokoju: <b>" + id + "</b> <button class='copy-btn'>Kopiuj</button><br><span style='opacity:.8'>" + hint + "</span>";
+    lanStatusEl.appendChild(box);
+    box.querySelector(".copy-btn").addEventListener("click", () => copyText(id));
+  }
+
+  function createHostPeer(id, onConnection) {
+    const peer = new Peer(id, peerOptions());
+    mp.peer = peer;
+    peer.on("open", () => dbg("peer open, ID:", peer.id));
+    peer.on("connection", conn => {
+      dbg("przychodzące połączenie — czekam na open");
+      conn.on("open", () => { dbg("kanał danych OTWARTY"); onConnection(conn); });
+      conn.on("error", err => {
+        dbg("błąd kanału:", err.type, err.message || "");
+        lanStatusEl.textContent = "Błąd połączenia danych: " + (err.type || "nieznany");
+      });
+      conn.on("close", () => dbg("kanał danych zamknięty"));
+    });
+    peer.on("error", err => {
+      dbg("peer error:", err.type, err.message || "");
+      if (err.type === "unavailable-id") {
+        lanStatusEl.textContent = "ID zajęte — losuję nowy identyfikator…";
+        peer.destroy();
+        mp.peer = null;
+        setTimeout(() => { if (mp.mode === "2v2") hostGame22(); else hostGame(); }, 600);
+      } else {
+        lanStatusEl.textContent = "Błąd połączenia: " + err.type;
+      }
+    });
+    peer.on("disconnected", () => {
+      dbg("broker disconnected");
+      if (peer.destroyed) return;
+      if (mp.connected() || (mp.mode === "2v2" && host22.conns.length)) return;
+      lanStatusEl.textContent = "Łączę ponownie z brokerem…";
+      peer.reconnect();
+    });
+    return peer;
+  }
+
+  function showConnUI(connected) {
+    $("btn-host").hidden = connected;
+    $("btn-join").hidden = connected;
+    $("lan-input").hidden = connected;
+    $("btn-leave").hidden = !connected;
+  }
+
+  function copyText(txt) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).catch(() => {});
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    const note = document.createElement("span");
+    note.className = "ok-note"; note.textContent = "✓ Skopiowano";
+    lanStatusEl.appendChild(note);
+    setTimeout(() => note.remove(), 2000);
+  }
+
+  function hostGame() {
+    if (mp.peer) leaveGame();
+    const id = genRoomId();
+    mp.isHost = true;
+    mp.role = "A";
+    showRoomId(id, "Podaj go drugiemu graczowi (przez internet)");
+    createHostPeer(id, conn => {
+      mp.conn = conn;
+      setupConnection(conn);
+    });
+  }
+
+  function attemptConnect(peer, id, onOpen) {
+    const conn = peer.connect(id);
+    let retried = false;
+    conn.on("open", () => { dbg("kanał OTWARTY"); mp.conn = conn; onOpen(conn); });
+    conn.on("error", err => {
+      dbg("błąd kanału:", err.type, err.message || "");
+      if (err.type === "negotiation-failed" && !retried && !mp.connected()) {
+        retried = true;
+        lanStatusEl.textContent = "Negocjacja P2P nie powiodła się — ponawiam…";
+        setTimeout(() => { if (mp.peer === peer && !mp.connected()) attemptConnect(peer, id, onOpen); }, 1500);
+      } else {
+        lanStatusEl.textContent = "Nie znaleziono pokoju. Sprawdź ID.";
+      }
+    });
+    conn.on("close", () => { dbg("kanał zamknięty"); mp.conn = null; lanStatusEl.textContent = "Przeciwnik się rozłączył."; });
+    return conn;
+  }
+
+  function joinGame() {
+    const id = lanIdEl.value.trim();
+    if (!id) { lanStatusEl.textContent = "Wpisz ID pokoju."; return; }
+    if (mp.peer) leaveGame();
+    mp.isHost = false;
+    mp.role = "B";
+    lanStatusEl.textContent = "Łączenie z " + id + "…";
+    const peer = new Peer(peerOptions());
+    mp.peer = peer;
+    peer.on("open", () => {
+      dbg("peer open, ID:", peer.id, "— łączę z", id);
+      attemptConnect(peer, id, conn => setupConnection(conn));
+    });
+    peer.on("error", err => {
+      dbg("peer error:", err.type, err.message || "");
+      if (err.type === "peer-unavailable") lanStatusEl.textContent = "Nie znaleziono pokoju o tym ID.";
+      else lanStatusEl.textContent = "Błąd: " + err.type + " — sprawdź internet.";
+    });
+    peer.on("disconnected", () => {
+      dbg("broker disconnected");
+      if (peer.destroyed) return;
+      if (mp.connected()) return;
+      lanStatusEl.textContent = "Łączę ponownie z brokerem…";
+      peer.reconnect();
+    });
+  }
+
+  function setupConnection(conn) {
+    if (mp.mode !== "2v2") showConnUI(true);
+    conn.on("error", err => {
+      dbg("conn error:", err.type || err, err.message || "");
+      if (debugMode) lanStatusEl.textContent = "Błąd połączenia: " + (err.type || err);
+    });
+    conn.on("data", msg => {
+      if (mp.mode === "2v2") {
+        if (mp.isHost) handle22HostMsg(conn, msg);
+        else handle22GuestMsg(msg);
+      } else {
+        handleMessage(msg);
+      }
+    });
+    conn.on("close", () => {
+      if (mp.mode === "2v2") {
+        if (mp.isHost) {
+          host22.conns = host22.conns.filter(c => c !== conn);
+          if (conn.playerId) {
+            delete host22.assigned[conn.playerId];
+            delete host22.names[conn.playerId];
+            delete host22.ready[conn.playerId];
+            delete host22.fleets[conn.playerId];
+          }
+          broadcast22({ type: "roster22", roster: roster22() });
+          broadcast22({ type: "abort22" });
+        } else {
+          mp.conn = null;
+          lanStatusEl.textContent = "Połączenie przerwane.";
+          setStatus("Połączenie przerwane", "lost");
+        }
+      } else {
+        mp.conn = null;
+        lanStatusEl.textContent = "Przeciwnik się rozłączył.";
+        setStatus("Połączenie przerwane", "lost");
+      }
+    });
+    mp.ready = false;
+    mp.oppReady = false;
+    if (mp.mode !== "2v2") {
+      mp.name = nick();
+      $("player-title").textContent = "Twoja flota (" + mp.name + ")";
+      mp.send({ type: "name", name: mp.name });
+      lanStatusEl.textContent = "Połączono! Ustaw flotę i kliknij Gotów.";
+      setStatus("Połączono. Ustaw swoją flotę…", "playing");
+    }
+  }
+
+  function leaveGame() {
+    if (mp.conn && mp.conn.open) { try { mp.send({ type: "leave" }); } catch (e) {} }
+    if (mp.peer) { try { mp.peer.destroy(); } catch (e) {} }
+    mp.peer = null; mp.conn = null;
+    mp.isHost = false; mp.role = null; mp.ready = false; mp.oppReady = false;
+    mp.oppName = "";
+    pendingJoin = false;
+    host22.conns = [];
+    if (mp.mode === "2v2") {
+      state22.myId = null; state22.team = null; state22.roster = [];
+      state22.allyId = null; state22.enIds = [];
+    }
+    showConnUI(false);
+    lanStatusEl.textContent = "";
+  }
+
+  function handleMessage(msg) {
+    if (!msg || !msg.type) return;
+    switch (msg.type) {
+      case "name":
+        mp.oppName = msg.name || "Przeciwnik";
+        $("enemy-title").textContent = "Flota wroga (" + mp.oppName + ")";
+        break;
+      case "reveal":
+        mp.oppFleet = msg.fleet || [];
+        if (state.phase === "ended") showRevealedFleet(mp.oppFleet);
+        break;
+      case "ready":
+        mp.oppReady = true;
+        setStatus("Przeciwnik gotów. Czekam na Gotów…", "playing");
+        if (mp.isHost && mp.ready) sendBegin();
+        break;
+      case "begin":
+        mp.began = true;
+        state.phase = "playing";
+        state.myTurn = (msg.first === mp.role);
+        paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+        setStatus(state.myTurn ? "Twoja kolej — strzelaj!" : "Kolej przeciwnika — czekaj…", "playing");
+        paintBoards();
+        break;
+      case "shot":
+        processOpponentShot(msg.r, msg.c);
+        break;
+      case "result":
+        processShotResult(msg);
+        break;
+      case "leave":
+        if (mp.conn) { mp.conn.close(); }
+        lanStatusEl.textContent = "Przeciwnik wyszedł z gry.";
+        break;
+    }
+  }
+
+  function processOpponentShot(r, c) {
+    if (state.phase !== "playing") return;
+    const ship = shipAt(state.playerShips, r, c);
+    const hit = !!ship;
+    state.enemyAttacks.push({ r, c, hit });
+    let sunk = false;
+    if (hit) {
+      ship.hit(r, c);
+      sunk = ship.sunk();
+      sndHit();
+    } else {
+      sndMiss();
+    }
+    flashShot(r, c, hit);
+    mp.send({ type: "result", r, c, hit, sunk, size: sunk ? ship.size : 0, cells: sunk ? ship.cells.map(p => [p.r, p.c]) : [] });
+    paintBoards();
+    if (state.playerShips.every(s => s.sunk())) { endGame(false); return; }
+    state.myTurn = !hit;   // trafienie = przeciwnik strzela dalej; pudło = moja kolej
+    setStatus(hit ? "Przeciwnik trafił — strzela dalej…" : "Przeciwnik spudłował. Twoja kolej!", "playing");
+  }
+
+  function processShotResult(msg) {
+    state.enemyShots.push({ r: msg.r, c: msg.c, hit: msg.hit });
+    if (msg.hit) sndHit(); else sndMiss();
+    if (msg.hit && msg.sunk && msg.cells && msg.cells.length) {
+      mp.sunkCount++;
+      msg.cells.forEach(([r, c]) => mp.sunkCells.add(r + "," + c));
+      sndSunk();
+      setStatus("Zatopiłeś okręt przeciwnika! Strzelaj dalej", "playing");
+    }
+    paintBoards();
+    if (mp.sunkCount >= MP_TOTAL_SHIPS) { endGame(true); return; }
+    if (msg.hit) {
+      state.myTurn = true;   // trafienie = kolejny strzał
+      if (!msg.sunk) setStatus("Trafiony! Strzelaj dalej", "playing");
+    } else {
+      setStatus("Pudło — teraz kolej przeciwnika", "playing");
+    }
+  }
+
+  function sendBegin() {
+    const first = Math.random() < 0.5 ? "A" : "B";
+    mp.began = true;
+    state.phase = "playing";
+    state.myTurn = (first === mp.role);
+    paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+    setStatus(state.myTurn ? "Twoja kolej — strzelaj!" : "Kolej przeciwnika — czekaj…", "playing");
+    paintBoards();
+    mp.send({ type: "begin", first });
+  }
+
+  function setMode(m) {
+    if (m === mp.mode) return;
+    if (mp.peer) leaveGame();
+    mp.mode = m;
+    $("mode-sp").classList.toggle("active", m === "sp");
+    $("mode-mp").classList.toggle("active", m === "mp");
+    $("mode-2v2").classList.toggle("active", m === "2v2");
+    $("lan-panel").hidden = m === "sp";
+    $("slot-pick").hidden = m !== "2v2";
+    $("boards2").hidden = m === "2v2";
+    $("boards22").hidden = m !== "2v2";
+    $("roster22").hidden = m !== "2v2";
+    $("btn-start").textContent = m === "sp" ? "Start" : "Gotów";
+    $("subtitle").textContent =
+      m === "sp" ? "Gra w okręty • Ty vs. Komputer" :
+      m === "mp" ? "Gra w okręty • 2 graczy online" :
+      "Gra w okręty • 2v2 drużynowo online";
+    newGame();
+  }
+
+  // ================= 2v2 TEAM MODE =================
+  const state22 = {
+    phase: "lobby",       // lobby | placing | playing | ended
+    team: null,           // "A" | "B"
+    myId: null,           // "A1" | "A2" | "B1" | "B2"
+    allyId: null,
+    enIds: [],            // [en1, en2]
+    roster: [],           // [{id,name,team,ready}]
+    myShips: [],
+    allyShips: [],
+    turnPlayer: null,
+    shots: {},            // targetId -> [{r,c,hit,byTeam}]
+    sunkCells: {},        // targetId -> Set("r,c")
+    reveal: null,         // [{id, cells}] enemy fleets at game end
+  };
+
+  const gridEls22 = {
+    own: $("grid-own"),
+    ally: $("grid-ally"),
+    en1: $("grid-en1"),
+    en2: $("grid-en2"),
+  };
+  const titleEls22 = {
+    own: $("title-own"),
+    ally: $("title-ally"),
+    en1: $("title-en1"),
+    en2: $("title-en2"),
+  };
+  const rosterEl = $("roster22");
+
+  const host22 = {
+    conns: [],
+    assigned: {},         // id -> true
+    names: {},            // id -> name
+    ready: {},            // id -> bool
+    fleets: {},           // id -> ship objects[]
+    shotHist: {},         // id -> Set("r,c")
+    started: false,
+    over: false,
+    turnPlayer: null,
+  };
+
+  function nick() { return $("nick-input").value.trim() || "Gracz"; }
+  function teamOfId(id) { return id ? id[0] : null; }
+
+  function render2v2Boards() {
+    renderBoard(gridEls22.own, false);
+    renderBoard(gridEls22.ally, false);
+    renderBoard(gridEls22.en1, true);
+    renderBoard(gridEls22.en2, true);
+  }
+
+  function paintGrid(el, ships, shots, sunkCells, kind) {
+    const cells = el.querySelectorAll(".cell");
+    for (const cell of cells) {
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      const key = r + "," + c;
+      const ship = shipAt(ships, r, c);
+      const shot = shots.find(s => s.r === r && s.c === c);
+      cell.className = "cell" + (kind === "enemy" ? " enemy" : "") + (ship ? " ship" : "");
+      if (shot && shot.hit) {
+        const isSunk = sunkCells ? sunkCells.has(key) : !!(ship && ship.sunk());
+        cell.classList.add(isSunk ? "sunk" : "hit");
+      } else if (shot) {
+        cell.classList.add("miss");
+      }
+    }
+  }
+
+  function paint2v2Boards() {
+    const myShots = state22.shots[state22.myId] || [];
+    paintGrid(gridEls22.own, state22.myShips, myShots, null, "me");
+    const allyShots = state22.shots[state22.allyId] || [];
+    paintGrid(gridEls22.ally, state22.allyShips, allyShots, null, "ally");
+    const en1 = state22.enIds[0], en2 = state22.enIds[1];
+    paintGrid(gridEls22.en1, [], (state22.shots[en1] || []).filter(s => s.byTeam === state22.team), state22.sunkCells[en1], "enemy");
+    paintGrid(gridEls22.en2, [], (state22.shots[en2] || []).filter(s => s.byTeam === state22.team), state22.sunkCells[en2], "enemy");
+    if (state22.phase === "ended" && state22.reveal && state22.reveal.length) {
+      markRevealed(gridEls22.en1, revealCells22(en1));
+      markRevealed(gridEls22.en2, revealCells22(en2));
+    }
+    updatePalette();
+  }
+
+  function revealCells22(id) {
+    const f = state22.reveal.find(r => r.id === id);
+    return f ? f.cells : [];
+  }
+
+  function markRevealed(el, cells) {
+    if (!cells || !cells.length) return;
+    const set = new Set(cells.map(p => p[0] + "," + p[1]));
+    const cs = el.querySelectorAll(".cell");
+    for (const cell of cs) {
+      const r = +cell.dataset.r, c = +cell.dataset.c;
+      if (set.has(r + "," + c) && !cell.classList.contains("hit") && !cell.classList.contains("miss")) {
+        cell.classList.add("ship");
+      }
+    }
+  }
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  function renderRoster22() {
+    rosterEl.innerHTML = "";
+    if (!state22.myId) { rosterEl.hidden = true; return; }
+    rosterEl.hidden = false;
+    for (const p of state22.roster) {
+      const chip = document.createElement("div");
+      chip.className = "chip" + (p.team === "A" ? " teamA" : " teamB") + (p.ready ? " ready" : "") + (p.id === state22.myId ? " me" : "");
+      const role = p.id === state22.myId ? " (Ty)" : (p.id === state22.allyId ? " (partner)" : "");
+      chip.innerHTML = '<span class="dot"></span>' + esc(p.name) + '<span class="sub">' + esc(p.id) + role + '</span>';
+      rosterEl.appendChild(chip);
+    }
+  }
+
+  function nameOf22(id) {
+    const p = state22.roster.find(x => x.id === id);
+    return p ? p.name : "";
+  }
+
+  function updateRoster22() {
+    if (!state22.myId) { rosterEl.innerHTML = ""; rosterEl.hidden = true; return; }
+    state22.allyId = null;
+    for (const p of state22.roster) {
+      if (p.team === state22.team && p.id !== state22.myId) { state22.allyId = p.id; break; }
+    }
+    state22.enIds = state22.roster.filter(p => p.team !== state22.team).map(p => p.id).sort();
+    titleEls22.ally.textContent = "Partner: " + (nameOf22(state22.allyId) || "—");
+    titleEls22.en1.textContent = "Przeciwnik: " + (nameOf22(state22.enIds[0]) || "—");
+    titleEls22.en2.textContent = "Przeciwnik: " + (nameOf22(state22.enIds[1]) || "—");
+    renderRoster22();
+    updateSlotPick();
+    paint2v2Boards();
+  }
+
+  function updateSlotPick() {
+    if (mp.mode !== "2v2") return;
+    const taken = new Set(state22.roster.map(p => p.id));
+    for (const btn of document.querySelectorAll(".slot-btn")) {
+      const slot = btn.dataset.slot;
+      btn.classList.toggle("taken", taken.has(slot));
+      btn.classList.toggle("selected", slot === selectedSlot && !taken.has(slot));
+    }
+  }
+
+  // ----- host authority -----
+  function roster22() {
+    return ["A1", "A2", "B1", "B2"].filter(id => host22.assigned[id]).map(id => ({
+      id,
+      name: host22.names[id] || id,
+      team: teamOfId(id),
+      ready: !!host22.ready[id],
+    }));
+  }
+
+  function allReady22() { return roster22().every(p => p.ready); }
+
+  function pickFreeId22() {
+    for (const id of ["A2", "B1", "B2"]) if (!host22.assigned[id]) return id;
+    return null;
+  }
+
+  function broadcast22(msg) {
+    for (const c of host22.conns) if (c && c.open) c.send(msg);
+    handle22GuestMsg(msg);
+  }
+
+  function handle22HostMsg(conn, msg) {
+    if (!msg || !msg.type) return;
+    const senderId = conn ? conn.playerId : "A1";
+    switch (msg.type) {
+      case "join22":
+        if (conn && conn.playerId) return;
+        {
+          const want = (msg.slot && msg.slot !== "A1" && ["A2", "B1", "B2"].includes(msg.slot)) ? msg.slot : pickFreeId22();
+          if (!want) { if (conn) conn.send({ type: "full22" }); return; }
+          if (host22.assigned[want]) {
+            if (conn) conn.send({ type: "slotTaken22", slot: want });
+            return;
+          }
+          conn.playerId = want;
+          host22.assigned[want] = true;
+          host22.names[want] = msg.name || want;
+          conn.send({ type: "assign22", myId: want, team: teamOfId(want) });
+          broadcast22({ type: "roster22", roster: roster22() });
+        }
+        break;
+      case "ready22":
+        host22.ready[senderId] = true;
+        host22.fleets[senderId] = (msg.fleet || []).map(cells => makeShip(cells.map(([r, c]) => ({ r, c }))));
+        broadcast22({ type: "roster22", roster: roster22() });
+        if (allReady22() && !host22.started) start22();
+        break;
+      case "shot22":
+        host22.processShot(senderId, msg.target, msg.r, msg.c);
+        break;
+      case "restart22":
+        restart22();
+        break;
+    }
+  }
+
+  function isAlive22(id) {
+    const f = host22.fleets[id];
+    return !!f && !f.every(s => s.sunk());
+  }
+
+  function mateOf22(id) {
+    const t = teamOfId(id);
+    for (const p of roster22()) if (p.team === t && p.id !== id) return p.id;
+    return null;
+  }
+
+  function livingOf22(team) {
+    return roster22().filter(p => p.team === team && isAlive22(p.id)).map(p => p.id);
+  }
+
+  function nextTurn22(senderId, hit) {
+    const oppTeam = teamOfId(senderId) === "A" ? "B" : "A";
+    const oppAlive = livingOf22(oppTeam);
+    if (!oppAlive.length) return null;   // opponent team fully destroyed -> sender team wins
+    if (hit) {
+      if (isAlive22(senderId)) return senderId;
+      const mate = mateOf22(senderId);
+      if (mate && isAlive22(mate)) return mate;
+    }
+    return oppAlive[Math.floor(Math.random() * oppAlive.length)];
+  }
+
+  host22.processShot = function (senderId, targetId, r, c) {
+    if (host22.over || host22.turnPlayer !== senderId) return;
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return;
+    const fleet = host22.fleets[targetId];
+    if (!fleet) return;
+    const hist = host22.shotHist[targetId] || (host22.shotHist[targetId] = new Set());
+    if (hist.has(r + "," + c)) return;   // duplicate shot
+    hist.add(r + "," + c);
+    const ship = shipAt(fleet, r, c);
+    const hit = !!ship;
+    if (hit) ship.hit(r, c);
+    const sunk = hit && ship.sunk();
+    const cells = sunk ? ship.cells.map(p => [p.r, p.c]) : [];
+    const nextTurn = nextTurn22(senderId, hit);
+    let winnerTeam = null;
+    if (!nextTurn) winnerTeam = teamOfId(senderId);
+    host22.turnPlayer = nextTurn;
+    if (winnerTeam) host22.over = true;
+    broadcast22({ type: "result22", byPlayer: senderId, target: targetId, r, c, hit, sunk, size: sunk ? ship.size : 0, cells, nextTurn, winnerTeam });
+    if (winnerTeam) revealAll22();
+  };
+
+  function cellsOf22(ships) { return (ships || []).map(s => s.cells.map(p => [p.r, p.c])); }
+
+  function revealAll22() {
+    for (const p of roster22()) {
+      const en = roster22().filter(q => q.team !== p.team).map(q => ({ id: q.id, cells: cellsOf22(host22.fleets[q.id]) }));
+      const msg = { type: "reveal22", fleets: en };
+      if (p.id === "A1") handle22GuestMsg(msg);
+      else {
+        const c = host22.conns.find(c => c.playerId === p.id);
+        if (c && c.open) c.send(msg);
+      }
+    }
+  }
+
+  function start22() {
+    host22.started = true;
+    const firstTeam = Math.random() < 0.5 ? "A" : "B";
+    const living = livingOf22(firstTeam);
+    const turn = living.length ? living[Math.floor(Math.random() * living.length)] : "A1";
+    host22.turnPlayer = turn;
+    for (const p of roster22()) {
+      const ally = mateOf22(p.id);
+      const allyFleet = ally ? (host22.fleets[ally] || []).map(s => s.cells.map(c => [c.r, c.c])) : [];
+      const msg = { type: "begin22", turnPlayer: turn, allyId: ally, allyFleet };
+      if (p.id === "A1") handle22GuestMsg(msg);
+      else {
+        const c = host22.conns.find(c => c.playerId === p.id);
+        if (c && c.open) c.send(msg);
+      }
+    }
+  }
+
+  function restart22() {
+    host22.ready = {};
+    host22.fleets = {};
+    host22.shotHist = {};
+    host22.started = false;
+    host22.over = false;
+    host22.turnPlayer = null;
+    broadcast22({ type: "reset22" });
+    resetClient22();
+  }
+
+  // ----- client handlers (host applies these too) -----
+  function handle22GuestMsg(msg) {
+    if (!msg || !msg.type) return;
+    switch (msg.type) {
+      case "assign22":
+        pendingJoin = false;
+        state22.myId = msg.myId;
+        state22.team = msg.team;
+        state22.phase = "placing";
+        $("btn-start").disabled = false;
+        $("btn-random").disabled = false;
+        $("btn-rotate").disabled = false;
+        setStatus("Dołączono! Ustaw flotę i kliknij Gotów.", "playing");
+        updateSlotPick();
+        paint2v2Boards();
+        break;
+      case "slotTaken22":
+        setStatus("Stanowisko " + msg.slot + " jest zajęte — wybierz inne.", "lost");
+        updateSlotPick();
+        break;
+      case "roster22":
+        state22.roster = msg.roster;
+        updateRoster22();
+        break;
+      case "begin22":
+        state22.phase = "playing";
+        state22.turnPlayer = msg.turnPlayer;
+        state22.allyId = msg.allyId;
+        state22.allyShips = (msg.allyFleet || []).map(cells => makeShip(cells.map(([r, c]) => ({ r, c }))));
+        paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+        $("btn-start").disabled = true;
+        paint2v2Boards();
+        updateTurnStatus22();
+        break;
+      case "result22":
+        applyResult22(msg);
+        break;
+      case "reset22":
+        resetClient22();
+        break;
+      case "abort22":
+        state22.phase = "ended";
+        setStatus("Gra przerwana — ktoś się rozłączył", "lost");
+        break;
+      case "reveal22":
+        state22.reveal = msg.fleets || [];
+        paint2v2Boards();
+        break;
+      case "full22":
+        setStatus("Pokój jest pełny (4 graczy).", "lost");
+        break;
+    }
+  }
+
+  function applyResult22(msg) {
+    const shots = state22.shots[msg.target] || (state22.shots[msg.target] = []);
+    shots.push({ r: msg.r, c: msg.c, hit: msg.hit, byTeam: teamOfId(msg.byPlayer) });
+    if (msg.hit && msg.sunk && msg.cells && msg.cells.length) {
+      const sc = state22.sunkCells[msg.target] || (state22.sunkCells[msg.target] = new Set());
+      msg.cells.forEach(([r, c]) => sc.add(r + "," + c));
+    }
+    if (msg.target === state22.myId) {
+      const ship = shipAt(state22.myShips, msg.r, msg.c);
+      if (ship && msg.hit) ship.hit(msg.r, msg.c);
+    } else if (msg.target === state22.allyId) {
+      const ship = shipAt(state22.allyShips, msg.r, msg.c);
+      if (ship && msg.hit) ship.hit(msg.r, msg.c);
+    }
+    if (msg.hit) { sndHit(); if (msg.sunk) sndSunk(); } else sndMiss();
+    paint2v2Boards();
+    if (msg.winnerTeam) { endGame22(msg.winnerTeam); return; }
+    state22.turnPlayer = msg.nextTurn;
+    updateTurnStatus22();
+  }
+
+  function updateTurnStatus22() {
+    if (state22.phase !== "playing") return;
+    if (state22.turnPlayer === state22.myId) {
+      setStatus("Twoja kolej — strzelaj w planszę przeciwnika!", "playing");
+    } else {
+      const nm = nameOf22(state22.turnPlayer) || state22.turnPlayer || "?";
+      setStatus("Kolej: " + nm + " — czekaj…", "playing");
+    }
+  }
+
+  function endGame22(winnerTeam) {
+    state22.phase = "ended";
+    const myTeam = state22.team;
+    const won = myTeam === winnerTeam;
+    setStatus(won ? "Zwycięstwo Twojej drużyny! 🎉" : "Porażka — wygrała drużyna " + (winnerTeam === "A" ? "A" : "B"), won ? "won" : "lost");
+    if (won) beep(600,.2); else beep(140,.4,"square",.15);
+  }
+
+  function resetClient22() {
+    state22.myShips = [];
+    state22.allyShips = [];
+    state22.shots = {};
+    state22.sunkCells = {};
+    state22.reveal = null;
+    state22.turnPlayer = null;
+    state22.phase = "placing";
+    clearPlacement();
+    $("btn-random").disabled = false;
+    $("btn-rotate").disabled = false;
+    $("btn-start").disabled = false;
+    render2v2Boards();
+    updateRoster22();
+    setStatus("Ustaw swoją flotę i kliknij Gotów.");
+  }
+
+  // ----- 2v2 connection -----
+  function hostGame22() {
+    if (mp.peer) leaveGame();
+    const id = genRoomId();
+    mp.isHost = true;
+    mp.role = "A1";
+    showConnUI(true);
+    $("slot-pick").hidden = true;
+    showRoomId(id, "Wyślij go 3 graczom — pokój 2v2");
+
+    host22.conns = [];
+    host22.assigned = { A1: true };
+    host22.names = { A1: nick() };
+    host22.ready = {};
+    host22.fleets = {};
+    host22.shotHist = {};
+    host22.started = false;
+    host22.over = false;
+    host22.turnPlayer = null;
+
+    state22.myId = "A1";
+    state22.team = "A";
+    state22.phase = "placing";
+    broadcast22({ type: "roster22", roster: roster22() });
+
+    createHostPeer(id, conn => {
+      host22.conns.push(conn);
+      setupConnection(conn);
+    });
+  }
+
+  function joinGame22(id) {
+    if (mp.peer) leaveGame();
+    mp.isHost = false;
+    mp.role = null;
+    lanStatusEl.textContent = "Łączenie z " + id + "…";
+    const peer = new Peer(peerOptions());
+    mp.peer = peer;
+    peer.on("open", () => {
+      dbg("peer open, ID:", peer.id, "— łączę z", id);
+      attemptConnect(peer, id, conn => {
+        setupConnection(conn);
+        showConnUI(true);
+        $("slot-pick").hidden = false;
+        updateSlotPick();
+        pendingJoin = true;
+        mp.send({ type: "join22", name: nick(), slot: selectedSlot });
+      });
+    });
+    peer.on("error", err => {
+      dbg("peer error:", err.type, err.message || "");
+      if (err.type === "peer-unavailable") lanStatusEl.textContent = "Nie znaleziono pokoju o tym ID.";
+      else lanStatusEl.textContent = "Błąd: " + err.type + " — sprawdź internet.";
+    });
+    peer.on("disconnected", () => {
+      dbg("broker disconnected");
+      if (peer.destroyed || mp.connected()) return;
+      lanStatusEl.textContent = "Łączę ponownie z brokerem…";
+      peer.reconnect();
+    });
+  }
+
+  function shoot22(gridEl, e) {
+    const cell = e.target.closest(".cell");
+    if (!cell) return;
+    if (state22.phase !== "playing") return;
+    if (state22.turnPlayer !== state22.myId) { setStatus("To nie Twoja kolej!", "playing"); return; }
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    const enId = gridEl === gridEls22.en1 ? state22.enIds[0] : state22.enIds[1];
+    if (!enId) return;
+    const already = (state22.shots[enId] || []).some(s => s.r === r && s.c === c && s.byTeam === state22.team);
+    if (already) return;
+    sndShot();
+    if (mp.isHost) handle22HostMsg(null, { type: "shot22", target: enId, r, c });
+    else mp.send({ type: "shot22", target: enId, r, c });
+  }
+
+  function onStart() {
+    if (mp.mode === "2v2") {
+      if (!state22.myId) { setStatus("Najpierw utwórz lub dołącz do pokoju!", ""); return; }
+      if (placement.remaining.some(s => !s.placed)) { setStatus("Ustaw wszystkie okręty!", ""); return; }
+      const fleet = ownShips().map(s => s.cells.map(p => [p.r, p.c]));
+      $("btn-random").disabled = true;
+      $("btn-rotate").disabled = true;
+      paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+      setStatus("Gotów — czekam na przeciwników…");
+      if (mp.isHost) handle22HostMsg(null, { type: "ready22", fleet });
+      else mp.send({ type: "ready22", fleet });
+      return;
+    }
+    startGame();
+  }
+
+  function onNew() {
+    if (mp.mode === "2v2") {
+      if (mp.isHost && mp.peer) handle22HostMsg(null, { type: "restart22" });
+      else if (mp.connected()) mp.send({ type: "restart22" });
+      else resetClient22();
+      return;
+    }
+    newGame();
+  }
+
+  // ---------- events ----------
+  enemyGridEl.addEventListener("click", e => {
+    const cell = e.target.closest(".cell");
+    if (!cell || state.phase !== "playing" || !state.myTurn) return;
+    shootAtEnemy(+cell.dataset.r, +cell.dataset.c);
+  });
+
+  $("btn-random").addEventListener("click", () => {
+    randomPlacement();
+    if (mp.mode === "2v2") render2v2Boards(); else renderBoard(playerGridEl, false);
+    paintBoards();
+    setStatus("Flota ustawiona losowo — kliknij Start", "");
+  });
+  $("btn-rotate").addEventListener("click", () => { state.rotation = state.rotation ? 0 : 1; paintBoards(); });
+  $("btn-start").addEventListener("click", onStart);
+  $("btn-new").addEventListener("click", onNew);
+  $("mode-sp").addEventListener("click", () => setMode("sp"));
+  $("mode-mp").addEventListener("click", () => setMode("mp"));
+  $("mode-2v2").addEventListener("click", () => setMode("2v2"));
+  $("btn-host").addEventListener("click", () => { if (mp.mode === "2v2") hostGame22(); else hostGame(); });
+  $("btn-join").addEventListener("click", () => { if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); });
+  $("btn-leave").addEventListener("click", leaveGame);
+  $("lan-input").addEventListener("keydown", e => { if (e.key === "Enter") { if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); } });
+  document.querySelectorAll(".slot-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("taken")) return;
+      selectedSlot = btn.dataset.slot;
+      document.querySelectorAll(".slot-btn").forEach(b => b.classList.toggle("selected", b === btn));
+      if (pendingJoin && mp.connected() && mp.mode === "2v2") {
+        mp.send({ type: "join22", name: nick(), slot: selectedSlot });
+        setStatus("Wybierasz stanowisko " + selectedSlot + "…", "playing");
+      }
+    });
+  });
+
+  window.addEventListener("keydown", e => {
+    if ((e.key === "r" || e.key === "R") && placingPhase() === "placing") { state.rotation = state.rotation ? 0 : 1; paintBoards(); }
+  });
+
+  // ---------- init ----------
+  initDebug();
+  bindPlacementBoard(playerGridEl);
+  bindPlacementBoard(gridEls22.own);
+  gridEls22.en1.addEventListener("click", e => shoot22(gridEls22.en1, e));
+  gridEls22.en2.addEventListener("click", e => shoot22(gridEls22.en2, e));
+  newGame();
+})();
+</script>
+</body>
+</html>

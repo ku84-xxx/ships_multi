@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: statki-peer-server
+    runtime: node
+    plan: free
+    rootDirectory: server
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /

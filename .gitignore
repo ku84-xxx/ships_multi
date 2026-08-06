@@ -1,0 +1,7 @@
+node_modules/
+server/node_modules/
+
+# przestarzałe kopie projektu (nie są częścią aktywnej gry)
+ships_multi/
+statki_multi/
+statki_multi2/
