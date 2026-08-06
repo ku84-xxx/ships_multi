@@ -964,22 +964,15 @@
       if (!/^turn:/.test(t)) t = "turn:" + t;
       iceServers.push({ urls: t, username, credential });
     } else {
-      // Kilka niezależnych darmowych relayów TURN — ICE testuje wszystkie
-      // i używa pierwszego, który odpowie. Jeśli jeden padnie, działa następny.
+      // Wiele niezależnych relayów TURN (każdy osobny wpis dla max kompatybilności).
+      // Port 80 + TCP ma największą szansę przejścia przez firewalle/sieci komórkowe.
       iceServers.push(
-        // Metered openrelay — relay 1
-        { urls: ["turn:openrelay.metered.ca:80?transport=tcp", "turn:openrelay.metered.ca:80"],
-          username: "openrelayproject", credential: "openrelayproject" },
-        { urls: ["turn:openrelay.metered.ca:443?transport=tcp", "turn:openrelay.metered.ca:443"],
-          username: "openrelayproject", credential: "openrelayproject" },
-        // Metered relay — alternatywny host
-        { urls: ["turn:relay.metered.ca:80?transport=tcp", "turn:relay.metered.ca:80"],
-          username: "openrelayproject", credential: "openrelayproject" },
-        { urls: ["turn:relay.metered.ca:443?transport=tcp", "turn:relay.metered.ca:443"],
-          username: "openrelayproject", credential: "openrelayproject" },
-        // Trzeci niezależny relay — gdyby Metered.ca był cały down
-        { urls: ["turn:freestun.net:3478?transport=tcp","turn:freestun.net:3478"],
-          username: "free", credential: "free" }
+        { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:relay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:relay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
       );
     }
     return { host, port, debug: debugMode ? 2 : 0, config: { iceServers } };
@@ -1002,6 +995,28 @@
       el.checked = debugMode;
       el.addEventListener("change", () => { debugMode = el.checked; });
     }
+    if (debugMode) runTurnDiag();
+  }
+  function runTurnDiag() {
+    const log = (t) => { dbg("[TURN-diag]", t); };
+    log("Sprawdzam dostepnosc relayow…");
+    const pc = new RTCPeerConnection(peerOptions().config);
+    let relay = false, start = Date.now();
+    pc.onicecandidate = e => {
+      if (!e.candidate) return;
+      const c = e.candidate.candidate;
+      if (c.includes(" relay ")) { relay = true; log("RELAY OK: " + c.split(" ")[4]); }
+    };
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === "complete") {
+        const t = Date.now() - start;
+        log(relay ? "TURN relay DZIALA (polaczony w " + t + "ms)" : "BRAK TURN — tylko host/srflx (po " + t + "ms). P2P moze nie dzialac przez NAT!");
+        pc.close();
+      }
+    };
+    pc.createDataChannel("diag");
+    pc.createOffer().then(d => pc.setLocalDescription(d));
+    setTimeout(() => { try { pc.close(); } catch {} }, 8000);
   }
   // ───────────────────────────────────────────────────────────────────────
 
