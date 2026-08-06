@@ -873,7 +873,7 @@
   // publicznej chmury peerjs.com. Adres można też nadpisać parametrem w URL:
   //   ?peer=twoj-serwer.example.com        (port 443)
   //   ?peer=twoj-serwer.example.com:9000   (dowolny port, np. testy lokalne)
-  const PEER_SERVER = "";
+  const PEER_SERVER = "statki-peer-server.onrender.com";
   let debugMode = false;
   function peerOptions() {
     const fromUrl = new URLSearchParams(location.search).get("peer");
