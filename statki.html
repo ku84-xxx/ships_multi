@@ -946,7 +946,10 @@
     const iceServers = [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
+      { urls: "stun:stun3.l.google.com:19302" },
       { urls: "stun:stun.cloudflare.com:3478" },
+      { urls: "stun:stunserver.stunprotocol.org:3478" },
     ];
     const turn = new URLSearchParams(location.search).get("turn");
     if (turn) {
@@ -961,12 +964,22 @@
       if (!/^turn:/.test(t)) t = "turn:" + t;
       iceServers.push({ urls: t, username, credential });
     } else {
-      // Domyślny darmowy relay (openrelay.metered.ca) — pozwala połączyć się
-      // przez NAT, gdy bezpośrednie P2P zawiedzie (negotiation-failed).
+      // Kilka niezależnych darmowych relayów TURN — ICE testuje wszystkie
+      // i używa pierwszego, który odpowie. Jeśli jeden padnie, działa następny.
       iceServers.push(
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+        // Metered openrelay — relay 1
+        { urls: ["turn:openrelay.metered.ca:80?transport=tcp", "turn:openrelay.metered.ca:80"],
+          username: "openrelayproject", credential: "openrelayproject" },
+        { urls: ["turn:openrelay.metered.ca:443?transport=tcp", "turn:openrelay.metered.ca:443"],
+          username: "openrelayproject", credential: "openrelayproject" },
+        // Metered relay — alternatywny host
+        { urls: ["turn:relay.metered.ca:80?transport=tcp", "turn:relay.metered.ca:80"],
+          username: "openrelayproject", credential: "openrelayproject" },
+        { urls: ["turn:relay.metered.ca:443?transport=tcp", "turn:relay.metered.ca:443"],
+          username: "openrelayproject", credential: "openrelayproject" },
+        // Trzeci niezależny relay — gdyby Metered.ca był cały down
+        { urls: ["turn:freestun.net:3478?transport=tcp","turn:freestun.net:3478"],
+          username: "free", credential: "free" }
       );
     }
     return { host, port, debug: debugMode ? 2 : 0, config: { iceServers } };
