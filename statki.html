@@ -964,18 +964,35 @@
       if (!/^turn:/.test(t)) t = "turn:" + t;
       iceServers.push({ urls: t, username, credential });
     } else {
-      // Wiele niezależnych relayów TURN (każdy osobny wpis dla max kompatybilności).
-      // Port 80 + TCP ma największą szansę przejścia przez firewalle/sieci komórkowe.
+      // Domyślnie TCP (port 80) — przechodzi przez firewalle.
+      // Jeśli chcesz własny działający TURN, użyj ?metered=TWOJ_KLUCZ
+      // (darmowe konto na metered.ca → 50 GB/mies.)
       iceServers.push(
         { urls: "turn:openrelay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
         { urls: "turn:relay.metered.ca:80?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-        { urls: "turn:relay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+        { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
       );
+      // Dodaj świeże credentiale z API Metered, jeśli są dostępne
+      if (meteredIceServers && meteredIceServers.length) iceServers.push(...meteredIceServers);
     }
     return { host, port, debug: debugMode ? 2 : 0, config: { iceServers } };
+  }
+
+  let meteredIceServers = null;
+  async function fetchMeteredTurn(key) {
+    try {
+      const r = await fetch("https://metered.ca/api/v1/turn/credentials?apiKey=" + encodeURIComponent(key));
+      if (!r.ok) { dbg("[TURN] Metered API: błąd HTTP " + r.status); return; }
+      const data = await r.json();
+      meteredIceServers = [];
+      for (const s of data) {
+        const u = (Array.isArray(s.urls) ? s.urls : [s.urls]).map(u =>
+          u.startsWith("turn:") && !u.includes("?transport=") ? u + "?transport=tcp" : u
+        );
+        meteredIceServers.push({ urls: u, username: s.username, credential: s.credential });
+      }
+      dbg("[TURN] Metered: " + meteredIceServers.length + " serwerow TURN (TCP) zaladowanych");
+    } catch (e) { dbg("[TURN] Metered API: blad " + (e.message || "")); }
   }
   function dbg() {
     if (!debugMode) return;
@@ -2047,6 +2064,9 @@
   // ---------- init ----------
   initDebug();
   initMob();
+  // Metered TURN — świeże credentiale z API (jeśli ?metered=KLUCZ)
+  const mKey = new URLSearchParams(location.search).get("metered");
+  if (mKey) fetchMeteredTurn(mKey);
   bindPlacementBoard(playerGridEl);
   bindPlacementBoard(gridEls22.own);
   gridEls22.en1.addEventListener("click", e => shoot22(gridEls22.en1, e));
