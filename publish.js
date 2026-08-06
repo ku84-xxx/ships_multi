@@ -59,12 +59,14 @@ async function main() {
     format: { comments: false },
   });
   if (result.error) throw result.error;
-  const js = result.code.replace(/<\/script/gi, "<\\/script").replace(/;(?!\n)/g, ";\n");
+  const js = result.code.replace(/<\/script/gi, "<\\/script");
+  // Łamię długie linie dla kompatybilności z GitHub Pages (max ~8KB/linia)
+  const wrapped = js.replace(/(.{8000})/g, "$1\n");
 
   let out = src.replace(/<style>[\s\S]*?<\/style>/, "<style>" + css + "</style>");
   const scriptStart = out.indexOf(appScript[0]);
   if (scriptStart === -1) throw new Error("nie znaleziono skryptu do podmiany");
-  out = out.slice(0, scriptStart) + "<script>" + js + "</script>" + out.slice(scriptStart + appScript[0].length);
+  out = out.slice(0, scriptStart) + "<script>" + wrapped + "</script>" + out.slice(scriptStart + appScript[0].length);
   out = out.replace(/<!--[\s\S]*?-->/g, "");
 
   fs.writeFileSync(path.join(__dirname, "index.html"), out);
