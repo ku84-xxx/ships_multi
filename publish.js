@@ -60,8 +60,18 @@ async function main() {
   });
   if (result.error) throw result.error;
   const js = result.code.replace(/<\/script/gi, "<\\/script");
-  // Łamię długie linie dla kompatybilności z GitHub Pages (max ~8KB/linia)
-  const wrapped = js.replace(/(.{8000})/g, "$1\n");
+  // Łamię linie przy średnikach, max ~8KB — inaczej Pages legacy pada
+  let wrapped = "";
+  let pos = 0;
+  while (pos < js.length) {
+    if (pos + 7500 >= js.length) { wrapped += js.slice(pos); break; }
+    let end = Math.min(pos + 7500, js.length);
+    // szukaj ostatniego średnika w oknie, nie rozcinaj stringów
+    let semi = js.lastIndexOf(";", end);
+    if (semi > pos + 2000) end = semi + 1;
+    wrapped += js.slice(pos, end) + "\n";
+    pos = end;
+  }
 
   let out = src.replace(/<style>[\s\S]*?<\/style>/, "<style>" + css + "</style>");
   const scriptStart = out.indexOf(appScript[0]);
