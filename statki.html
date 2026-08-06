@@ -277,6 +277,60 @@
   }
 
   footer { margin-top: 20px; font-size: .75rem; color: #6f93aa; text-align: center; }
+
+/* ===== MOBILNY / DOTYK ===== */
+@media (max-width: 768px) {
+  :root { --cell: 28px; }
+  body { padding: 6px; }
+  h1 { font-size: 1.3rem; letter-spacing: 3px; margin: 2px 0; }
+  .subtitle { margin-bottom: 6px; font-size: .75rem; }
+  .mode-switch { gap: 4px; margin-bottom: 8px; }
+  .mode-switch .btn { padding: 7px 9px; font-size: .7rem; letter-spacing: 0; }
+  .lan-panel { padding: 8px 10px; gap: 6px; margin-bottom: 8px; }
+  .lan-box { flex-direction: column; gap: 4px; align-items: stretch; }
+  #lan-input, #nick-input { min-width: 0; width: 100%; }
+  .ship-palette { margin: 6px 0; gap: 4px; }
+  .ship-token { padding: 4px 6px; font-size: .7rem; gap: 3px; }
+  .ship-token .seg { width: 10px; height: 10px; }
+  .controls { margin-top: 8px; gap: 5px; max-width: 100%; }
+  .controls .btn { padding: 7px 10px; font-size: .75rem; }
+  .roster { gap: 4px; margin-bottom: 8px; }
+  .roster .chip { padding: 4px 10px; font-size: .72rem; }
+  .slot-pick { gap: 4px; }
+  .slot-btn { padding: 5px 8px; font-size: .7rem; }
+
+  .boards { flex-direction: column; align-items: center; gap: 4px; }
+  .board-wrap { margin-bottom: 0; }
+  .board-wrap:not(.mob-main) { display: none; }
+  .board-title { margin-bottom: 3px; font-size: .75rem; letter-spacing: 1px; }
+  .grid { padding: 4px; gap: 1px; }
+  .cell { border-radius: 2px; }
+  .cell.hit::after, .cell.sunk::after, .cell.miss::after { font-size: .8rem; }
+  .label { font-size: .55rem; }
+  footer { display: none; }
+
+  #mob-bar {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    justify-content: center; align-items: center;
+    margin: 6px 0 8px;
+  }
+  #mob-bar .bar-label { font-size: .68rem; color: #bcd7ea; }
+  .mob-tab {
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2);
+    color: #bcd7ea; padding: 4px 8px; border-radius: 6px;
+    font-size: .68rem; cursor: pointer;
+  }
+  .mob-tab.sel { background: var(--gold); color: #1a1a1a; border-color: var(--gold); font-weight: 600; }
+
+  #mob-minis { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; }
+  .mini-wrap {
+    text-align: center; cursor: pointer; padding: 3px;
+    border-radius: 6px; border: 2px solid transparent;
+  }
+  .mini-wrap.sel { border-color: var(--gold); }
+  .mini-wrap canvas { display: block; border-radius: 3px; }
+  .mini-lbl { font-size: .6rem; color: #9fc2d9; margin-top: 2px; }
+}
 </style>
 </head>
 <body>
@@ -320,6 +374,9 @@
 <div id="status"><span class="lamp"></span><span id="status-text">Ustaw swoją flotę…</span></div>
 
 <div id="palette" class="ship-palette"></div>
+
+<div id="mob-bar" hidden></div>
+<div id="mob-minis" hidden></div>
 
 <div class="boards" id="boards2">
   <div class="board-wrap player">
@@ -474,6 +531,7 @@
       }
     }
     updatePalette();
+    drawMobMinis();
   }
 
   function shipAt(ships, r, c) {
@@ -1237,6 +1295,7 @@
       m === "sp" ? "Gra w okręty • Ty vs. Komputer" :
       m === "mp" ? "Gra w okręty • 2 graczy online" :
       "Gra w okręty • 2v2 drużynowo online";
+    mobRefresh();
     newGame();
   }
 
@@ -1322,6 +1381,7 @@
       markRevealed(gridEls22.en2, revealCells22(en2));
     }
     updatePalette();
+    drawMobMinis();
   }
 
   function revealCells22(id) {
@@ -1791,8 +1851,172 @@
     if ((e.key === "r" || e.key === "R") && placingPhase() === "placing") { state.rotation = state.rotation ? 0 : 1; paintBoards(); }
   });
 
+  // ---------- mobile / dotyk ----------
+  const mob = { on: false, main: '', _bs: [] };
+
+  function isMob() { return window.matchMedia('(max-width: 768px)').matches; }
+
+  function drawMobMinis() {
+    if (!mob.on) return;
+    for (const b of mob._bs) if (b._cv) drawMini(b._cv, b);
+  }
+
+  function getMobBoards() {
+    const list = [];
+    if (mp.mode === '2v2') {
+      list.push({ id: 'grid-own', wrap: gridEls22.own.closest('.board-wrap'), label: 'Moja', type: 'own' });
+      list.push({ id: 'grid-ally', wrap: gridEls22.ally.closest('.board-wrap'), label: 'Partner', type: 'ally' });
+      list.push({ id: 'grid-en1', wrap: gridEls22.en1.closest('.board-wrap'), label: 'Wróg 1', type: 'en1' });
+      list.push({ id: 'grid-en2', wrap: gridEls22.en2.closest('.board-wrap'), label: 'Wróg 2', type: 'en2' });
+    } else {
+      list.push({ id: 'player-grid', wrap: playerGridEl.closest('.board-wrap'), label: 'Moja', type: 'own' });
+      list.push({ id: 'enemy-grid', wrap: enemyGridEl.closest('.board-wrap'), label: 'Wróg', type: 'enemy' });
+    }
+    return list;
+  }
+
+  function initMob() {
+    mobRefresh();
+    window.addEventListener('resize', mobRefresh);
+  }
+
+  function mobRefresh() {
+    const now = isMob();
+    if (mob.on === now) { if (now) drawMobMinis(); return; }
+    mob.on = now;
+    const bar = $('mob-bar'), minis = $('mob-minis');
+    bar.hidden = minis.hidden = !now;
+
+    if (now) {
+      const cellPx = Math.min(30, Math.floor((window.innerWidth - 20) / 11));
+      document.documentElement.style.setProperty('--cell', cellPx + 'px');
+      mob._bs = getMobBoards();
+      updMobUI();
+      if (!mob.main || !mob._bs.find(b => b.id === mob.main)) {
+        mob.main = (mob._bs.find(b => b.type === 'enemy' || b.type === 'en1') || mob._bs[0]).id;
+      }
+      switchMob(mob.main);
+    } else {
+      document.documentElement.style.setProperty('--cell', '32px');
+      mob._bs.forEach(b => { b.wrap.classList.remove('mob-main'); });
+      mob.main = '';
+      bar.innerHTML = '';
+      minis.innerHTML = '';
+    }
+  }
+
+  function updMobUI() {
+    const bar = $('mob-bar');
+    bar.innerHTML = '<span class="bar-label">Widok:</span> ';
+    const minis = $('mob-minis');
+    minis.innerHTML = '';
+    mob._bs.forEach((b, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'mob-tab' + (b.id === mob.main ? ' sel' : '');
+      btn.textContent = b.label;
+      btn.addEventListener('click', () => switchMob(b.id));
+      bar.appendChild(btn);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'mini-wrap' + (b.id === mob.main ? ' sel' : '');
+      wrap.addEventListener('click', () => switchMob(b.id));
+      const cv = document.createElement('canvas');
+      b._cv = cv;
+      wrap.appendChild(cv);
+      const lbl = document.createElement('div');
+      lbl.className = 'mini-lbl';
+      lbl.textContent = b.label;
+      wrap.appendChild(lbl);
+      minis.appendChild(wrap);
+    });
+  }
+
+  function switchMob(boardId) {
+    if (!mob.on) return;
+    mob.main = boardId;
+    mob._bs.forEach(b => {
+      if (b.id === boardId) b.wrap.classList.add('mob-main');
+      else b.wrap.classList.remove('mob-main');
+    });
+    const bar = $('mob-bar');
+    bar.querySelectorAll('.mob-tab').forEach(btn => {
+      btn.classList.toggle('sel', btn.textContent === mob._bs.find(b => b.id === boardId)?.label);
+    });
+    $('mob-minis').querySelectorAll('.mini-wrap').forEach((w, i) => {
+      w.classList.toggle('sel', mob._bs[i]?.id === boardId);
+    });
+    drawMobMinis();
+  }
+
+  function drawMini(cv, board) {
+    const ctx = cv.getContext('2d');
+    const cp = 5, g = 1, S = 10;
+    const total = S * cp + (S - 1) * g;
+    cv.width = cv.height = total;
+    ctx.clearRect(0, 0, total, total);
+
+    for (let r = 0; r < S; r++) {
+      for (let c = 0; c < S; c++) {
+        const px = c * (cp + g), py = r * (cp + g);
+        let color = '#0e4f73', key = r + ',' + c;
+        let ship = null, shot = null;
+
+        if (board.type === 'own') {
+          const ships = mp.mode === '2v2' ? state22.myShips : state.playerShips;
+          ship = shipAt(ships, r, c);
+          const atks = mp.mode === '2v2'
+            ? (state22.shots[state22.myId] || [])
+            : state.enemyAttacks;
+          shot = atks.find(a => a.r === r && a.c === c);
+        } else if (board.type === 'ally') {
+          ship = shipAt(state22.allyShips, r, c);
+          const atks = state22.shots[state22.allyId] || [];
+          shot = atks.find(a => a.r === r && a.c === c);
+        } else if (mp.mode === '2v2' && (board.type === 'en1' || board.type === 'en2')) {
+          const enIdx = board.type === 'en1' ? 0 : 1;
+          const enId = state22.enIds[enIdx] || null;
+          const shots = enId ? (state22.shots[enId] || []).filter(s => s.byTeam === state22.team) : [];
+          const sunk = enId ? (state22.sunkCells[enId] || new Set()) : new Set();
+          shot = shots.find(s => s.r === r && s.c === c);
+          if (shot && sunk.has(key)) color = '#52212a';
+          else if (shot && shot.hit) color = '#e63946';
+          else if (shot) color = 'rgba(255,255,255,.25)';
+          if (state22.phase === 'ended' && state22.reveal && !shot) {
+            const rev = revealCells22(enId);
+            if (rev.length && rev.some(p => p[0] === r && p[1] === c)) color = '#5a6b74';
+          }
+        } else {
+          shot = state.enemyShots.find(s => s.r === r && s.c === c);
+          ship = shipAt(state.enemyShips, r, c);
+          if (shot) {
+            const sunk = mp.mode === 'mp' ? mp.sunkCells.has(key) : !!(ship && ship.sunk());
+            color = sunk ? '#52212a' : (shot.hit ? '#e63946' : 'rgba(255,255,255,.25)');
+          }
+          if (state.phase === 'ended' && ship && !shot) color = '#5a6b74';
+        }
+
+        if (board.type === 'own' || board.type === 'ally') {
+          if (ship) color = '#7a8a94';
+          if (shot) {
+            if (shot.hit) {
+              const sunkCheck = ship && ship.sunk();
+              color = sunkCheck ? '#52212a' : '#e63946';
+            } else {
+              color = 'rgba(255,255,255,.25)';
+            }
+          }
+        }
+
+        ctx.fillStyle = color;
+        ctx.fillRect(px, py, cp, cp);
+      }
+    }
+  }
+
+
   // ---------- init ----------
   initDebug();
+  initMob();
   bindPlacementBoard(playerGridEl);
   bindPlacementBoard(gridEls22.own);
   gridEls22.en1.addEventListener("click", e => shoot22(gridEls22.en1, e));
