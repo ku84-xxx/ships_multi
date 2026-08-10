@@ -5,3 +5,5 @@
 *.iml
 .idea/
 .gradle/
+statki-release.keystore
+keystore.properties

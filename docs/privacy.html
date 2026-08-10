@@ -13,26 +13,24 @@ a{color:#f4a261}code{background:rgba(255,255,255,.1);padding:2px 6px;border-radi
 <p><strong>Ostatnia aktualizacja:</strong> sierpień 2026</p>
 
 <h2>1. Jakie dane zbieramy?</h2>
-<p><strong>Nie zbieramy żadnych danych osobowych.</strong> Gra nie wymaga rejestracji, nie zapisuje adresu e-mail, imienia ani żadnych innych danych identyfikujących.</p>
+<p>Gra <strong>nie wymaga rejestracji, nie tworzy profili użytkowników ani nie przechowuje danych identyfikacyjnych</strong> (imię, adres e-mail, hasło itp.). Wszystkie dane rozgrywki (układ statków, historia ruchów) istnieją wyłącznie w pamięci przeglądarki podczas trwania sesji i są usuwane po jej zakończeniu.</p>
 
-<h2>2. Tryb online (WebRTC)</h2>
-<p>Gra korzysta z technologii <strong>WebRTC</strong> do bezpośredniej komunikacji między graczami (peer-to-peer). Podczas gry online:</p>
+<h2>2. Tryb online — połączenia sieciowe</h2>
+<p>W trybach gry przez internet (2 graczy, 2v2, Karuzela) wykorzystywane są następujące usługi sieciowe niezbędne do zestawienia połączenia między graczami:</p>
 <ul>
-<li>Adres IP Twojego urządzenia jest ujawniany drugiemu graczowi (wymóg techniczny WebRTC).</li>
-<li>Gra łączy się z publicznymi serwerami STUN/TURN, które pomagają w nawiązaniu połączenia (<code>stun.l.google.com</code>, <code>openrelay.metered.ca</code>).</li>
-<li>Ruch danych gry (ruchy, strzały) jest szyfrowany (DTLS) i nie przechodzi przez żaden serwer gry — dane płyną bezpośrednio między urządzeniami graczy.</li>
+<li><strong>Serwer sygnalizacyjny</strong> (<code>statki-peer-server.onrender.com</code>) — pośredniczy w wymianie technicznych danych potrzebnych do nawiązania bezpośredniego połączenia WebRTC.</li>
+<li><strong>Serwery TURN/STUN</strong> (<code>global.relay.metered.ca</code>) — pomagają w zestawieniu połączenia, gdy gracze znajdują się za zaporami sieciowymi (NAT/firewall).</li>
 </ul>
+<p>Usługi te mogą przetwarzać tymczasowe dane techniczne, takie jak <strong>adres IP</strong>, który jest niezbędny do zestawienia połączeń sieciowych. Adres IP nie jest przez nas przechowywany ani wykorzystywany w żadnym innym celu.</p>
+<p>Ruch danych gry (ruchy, pozycje statków) jest <strong>szyfrowany</strong> (DTLS) i przepływa bezpośrednio między urządzeniami graczy — nie przechodzi przez żaden serwer pośredniczący.</p>
 
-<h2>3. Serwer sygnalizacyjny</h2>
-<p>Do wymiany informacji potrzebnych do nawiązania połączenia P2P używamy serwera sygnalizacyjnego <code>statki-peer-server.onrender.com</code> (PeerJS). Serwer ten nie przechowuje treści rozgrywki — jedynie tymczasowo przekazuje techniczne dane handshake (identyfikatory peerów).</p>
+<h2>3. Przechowywanie lokalne</h2>
+<p>Gra nie wykorzystuje plików cookie ani trwałego magazynu lokalnego (localStorage). Wszystkie dane istnieją wyłącznie w pamięci operacyjnej podczas aktywnej sesji gry.</p>
 
-<h2>4. Ciasteczka i dane lokalne</h2>
-<p>Gra nie używa ciasteczek. Może przechowywać lokalnie na Twoim urządzeniu tymczasowe dane rozgrywki wyłącznie w pamięci przeglądarki (nie są trwale zapisywane).</p>
+<h2>4. Dzieci</h2>
+<p>Gra nie zawiera treści nieodpowiednich dla dzieci. Nie zbieramy świadomie danych od użytkowników poniżej 13 roku życia.</p>
 
-<h2>5. Dzieci</h2>
-<p>Gra nie zawiera treści nieodpowiednich dla dzieci i nie zbiera danych od żadnych użytkowników, w tym dzieci poniżej 13 lat.</p>
-
-<h2>6. Kontakt</h2>
-<p>Pytania o prywatność: <code>kubwie@gmail.com</code></p>
+<h2>5. Kontakt</h2>
+<p>Pytania dotyczące prywatności: <code>kubwie@gmail.com</code></p>
 </body>
 </html>

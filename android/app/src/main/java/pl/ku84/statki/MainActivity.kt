@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    private var urlFailed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,7 +24,6 @@ class MainActivity : AppCompatActivity() {
                 mediaPlaybackRequiresUserGesture = false
                 allowFileAccess = false
                 allowContentAccess = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 setSupportZoom(false)
             }
             webChromeClient = WebChromeClient()
@@ -31,7 +31,10 @@ class MainActivity : AppCompatActivity() {
                 override fun onReceivedError(
                     view: WebView, request: WebResourceRequest, error: WebResourceError
                 ) {
-                    loadUrl("file:///android_asset/offline.html")
+                    if (!urlFailed) {
+                        urlFailed = true
+                        loadUrl("file:///android_asset/game.html")
+                    }
                 }
             }
             loadUrl("https://ku84-xxx.github.io/ships_multi/")

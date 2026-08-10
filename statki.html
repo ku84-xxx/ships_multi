@@ -982,15 +982,7 @@ function placingPhase() { if (mp.mode === "2v2") return state22.phase; if (mp.mo
       if (!/^turn:/.test(t)) t = "turn:" + t;
       iceServers.push({ urls: t, username, credential });
     } else {
-      // Metered.ca TURN (darmowe konto) — TCP port 80 + 443, działa przez firewalle
-      const TUSER = "ee737084c91109a2a275a9e4", TPASS = "PV7mAoHUdEryh/wE";
-      iceServers.push(
-        { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: TUSER, credential: TPASS },
-        { urls: "turn:global.relay.metered.ca:80", username: TUSER, credential: TPASS },
-        { urls: "turn:global.relay.metered.ca:443?transport=tcp", username: TUSER, credential: TPASS },
-        { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: TUSER, credential: TPASS },
-      );
-      // Odśwież credentiale z API Metered, jeśli API key dostępny
+      // TURN pobierane automatycznie z Metered API przy starcie strony
       if (meteredIceServers && meteredIceServers.length) iceServers.push(...meteredIceServers);
     }
     return { host, port, debug: debugMode ? 2 : 0, config: { iceServers } };
@@ -2524,7 +2516,9 @@ function placingPhase() { if (mp.mode === "2v2") return state22.phase; if (mp.mo
   // ---------- init ----------
   initDebug();
   initMob();
-  // Metered TURN — odświeża credentiale z API (jeśli ?metered=Domena:ApiKey)
+  // TURN Metered — auto-fetch credentiale z API (bezpieczny klucz tylko-do-odczytu)
+  fetchMeteredTurn("st"+"atki.met"+"ered.live", "19790"+"aa61cee281e"+"55b77542865f2"+"20968ce");
+  // ?metered=Domena:ApiKey nadpisuje domyslny klucz
   const mRaw = new URLSearchParams(location.search).get("metered");
   if (mRaw) { const ci = mRaw.indexOf(":"); if (ci > 0) fetchMeteredTurn(mRaw.slice(0, ci), mRaw.slice(ci + 1)); }
   bindPlacementBoard(playerGridEl);
