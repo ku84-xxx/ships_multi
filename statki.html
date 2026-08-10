@@ -278,6 +278,19 @@
 
   footer { margin-top: 20px; font-size: .75rem; color: #6f93aa; text-align: center; }
 
+/* ===== KARUZELA ===== */
+#boardsCarousel { gap: 10px !important; }
+#boardsCarousel .grid { --cell: 22px; padding: 4px; gap: 1px; }
+#boardsCarousel .board-wrap .board-title { font-size: .75rem; margin-bottom: 3px; letter-spacing: 1px; }
+#boardsCarousel .board-wrap .cell { border-radius: 2px; }
+#boardsCarousel .board-wrap .label { font-size: .5rem; }
+#boardsCarousel .board-wrap .cell.hit::after,
+#boardsCarousel .board-wrap .cell.sunk::after,
+#boardsCarousel .board-wrap .cell.miss::after { font-size: .7rem; }
+.carousel-turn { border-color: var(--gold) !important; box-shadow: 0 0 10px var(--gold); }
+.carousel-target { border-color: #e63946 !important; box-shadow: 0 0 8px #e63946; }
+.carousel-you { border-color: #7ae582 !important; box-shadow: 0 0 6px #7ae582; }
+
 /* ===== MOBILNY / DOTYK ===== */
 @media (max-width: 768px) {
   :root { --cell: 28px; }
@@ -342,6 +355,7 @@
   <button id="mode-sp" class="btn active">1 gracz (komputer)</button>
   <button id="mode-mp" class="btn">2 graczy online</button>
   <button id="mode-2v2" class="btn">2v2 drużynowo online</button>
+  <button id="mode-carousel" class="btn">Karuzela (3-8)</button>
 </div>
 
 <div id="lan-panel" class="lan-panel" hidden>
@@ -407,6 +421,8 @@
     <div id="grid-en2" class="grid"></div>
   </div>
 </div>
+
+<div class="boards" id="boardsCarousel" hidden></div>
 
 <div class="controls">
   <button id="btn-random" class="btn">Losuj flotę</button>
@@ -503,6 +519,7 @@
   function labelEl(t) { const d = document.createElement("div"); d.className = "label"; d.textContent = t; return d; }
 
   function paintBoards() {
+    if (mp.mode === "carousel") { paintCarouselBoards(); return; }
     if (mp.mode === "2v2") { paint2v2Boards(); return; }
     const pcells = playerGridEl.querySelectorAll(".cell");
     for (const cell of pcells) {
@@ -538,9 +555,9 @@
     return ships.find(s => s.cells.some(p => p.r === r && p.c === c)) || null;
   }
 
-  function ownShips() { return mp.mode === "2v2" ? state22.myShips : state.playerShips; }
-  function ownGridEl() { return mp.mode === "2v2" ? $("grid-own") : playerGridEl; }
-  function placingPhase() { return mp.mode === "2v2" ? state22.phase : state.phase; }
+function ownShips() { if (mp.mode === "2v2") return state22.myShips; if (mp.mode === "carousel") return c.myShips; return state.playerShips; }
+function ownGridEl() { if (mp.mode === "2v2") return $("grid-own"); if (mp.mode === "carousel") return s("carousel-grid-" + (mp.role||"").slice(-6)); return playerGridEl; }
+function placingPhase() { if (mp.mode === "2v2") return state22.phase; if (mp.mode === "carousel") return c.phase; return state.phase; }
 
   // ---------- ship model ----------
   function makeShip(cells) {
@@ -895,6 +912,7 @@
   }
 
   function newGame() {
+    if (mp.mode === "carousel") { cNewGame(); return; }
     if (mp.mode === "2v2") { resetClient22(); return; }
     state.phase = "placing";
     state.myTurn = true;
@@ -1230,6 +1248,7 @@
     mp.oppName = "";
     pendingJoin = false;
     host22.conns = [];
+    if (mp.mode === "carousel") { cNewGame(); showConnUI(false); lanStatusEl.textContent = ""; return; }
     if (mp.mode === "2v2") {
       state22.myId = null; state22.team = null; state22.roster = [];
       state22.allyId = null; state22.enIds = [];
@@ -1333,16 +1352,21 @@
     $("mode-sp").classList.toggle("active", m === "sp");
     $("mode-mp").classList.toggle("active", m === "mp");
     $("mode-2v2").classList.toggle("active", m === "2v2");
+    $("mode-carousel").classList.toggle("active", m === "carousel");
     $("lan-panel").hidden = m === "sp";
     $("slot-pick").hidden = m !== "2v2";
-    $("boards2").hidden = m === "2v2";
+    const isCarousel = m === "carousel";
+    $("boards2").hidden = m === "2v2" || isCarousel;
     $("boards22").hidden = m !== "2v2";
-    $("roster22").hidden = m !== "2v2";
-    $("btn-start").textContent = m === "sp" ? "Start" : "Gotów";
+    $("roster22").hidden = m !== "2v2" || isCarousel;
+    $("boardsCarousel").hidden = !isCarousel;
+    if (!isCarousel) $("boardsCarousel").innerHTML = "";
+    $("btn-start").textContent = (m === "sp" || isCarousel) ? "Start" : "Gotów";
     $("subtitle").textContent =
       m === "sp" ? "Gra w okręty • Ty vs. Komputer" :
       m === "mp" ? "Gra w okręty • 2 graczy online" :
-      "Gra w okręty • 2v2 drużynowo online";
+      m === "2v2" ? "Gra w okręty • 2v2 drużynowo online" :
+      "Gra w okręty • Karuzela (3-8 graczy)";
     mobRefresh();
     newGame();
   }
@@ -1835,6 +1859,24 @@
   }
 
   function onStart() {
+    if (mp.mode === "carousel") {
+      if (placement.remaining.some(s => !s.placed)) { setStatus("Ustaw wszystkie okręty!", ""); return; }
+      c.myShips = ownShips();
+      $("btn-random").disabled = true; $("btn-rotate").disabled = true;
+      paletteEl.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+      setStatus("Gotów — czekam na pozostałych…");
+      if (mp.isHost) {
+        hc.fleets[mp.peer.id] = c.myShips;
+        hc.ready[mp.peer.id] = true;
+        cBroadcast({ type: "cPlace", id: mp.peer.id, fleet: encodeShips(c.myShips) });
+        cBroadcast({ type: "cReadyPlayer", id: mp.peer.id });
+        if (cAllReady()) cBegin();
+      } else {
+        mp.send({ type: "cPlace", id: mp.role, fleet: encodeShips(c.myShips) });
+        mp.send({ type: "cReady", id: mp.role });
+      }
+      return;
+    }
     if (mp.mode === "2v2") {
       if (!state22.myId) { setStatus("Najpierw utwórz lub dołącz do pokoju!", ""); return; }
       if (placement.remaining.some(s => !s.placed)) { setStatus("Ustaw wszystkie okręty!", ""); return; }
@@ -1851,6 +1893,7 @@
   }
 
   function onNew() {
+    if (mp.mode === "carousel") { cNewGame(); return; }
     if (mp.mode === "2v2") {
       if (mp.isHost && mp.peer) handle22HostMsg(null, { type: "restart22" });
       else if (mp.connected()) mp.send({ type: "restart22" });
@@ -1879,10 +1922,11 @@
   $("mode-sp").addEventListener("click", () => setMode("sp"));
   $("mode-mp").addEventListener("click", () => setMode("mp"));
   $("mode-2v2").addEventListener("click", () => setMode("2v2"));
-  $("btn-host").addEventListener("click", () => { if (mp.mode === "2v2") hostGame22(); else hostGame(); });
-  $("btn-join").addEventListener("click", () => { if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); });
+  $("mode-carousel").addEventListener("click", () => setMode("carousel"));
+  $("btn-host").addEventListener("click", () => { if (mp.mode === "carousel") cHost(); else if (mp.mode === "2v2") hostGame22(); else hostGame(); });
+  $("btn-join").addEventListener("click", () => { if (mp.mode === "carousel") cJoin(); else if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); });
   $("btn-leave").addEventListener("click", leaveGame);
-  $("lan-input").addEventListener("keydown", e => { if (e.key === "Enter") { if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); } });
+  $("lan-input").addEventListener("keydown", e => { if (e.key === "Enter") { if (mp.mode === "carousel") cJoin(); else if (mp.mode === "2v2") joinGame22(lanIdEl.value.trim()); else joinGame(); } });
   document.querySelectorAll(".slot-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (btn.classList.contains("taken")) return;
@@ -1911,7 +1955,14 @@
 
   function getMobBoards() {
     const list = [];
-    if (mp.mode === '2v2') {
+    if (mp.mode === 'carousel') {
+      for (const b of c.boards) {
+        const pid = b.id; const p = c.players.find(p => p.id === pid);
+        const isMe = pid === mp.role;
+        const isTarget = c.phase === "playing" && pid === cTarget();
+        list.push({ id: pid, wrap: b.gridEl.closest('.board-wrap'), label: (p?.name||pid.slice(-4))+(isMe?" (Ty)":""), type: isMe ? 'own' : isTarget ? 'enemy' : 'ally' });
+      }
+    } else if (mp.mode === '2v2') {
       list.push({ id: 'grid-own', wrap: gridEls22.own.closest('.board-wrap'), label: 'Moja', type: 'own' });
       list.push({ id: 'grid-ally', wrap: gridEls22.ally.closest('.board-wrap'), label: 'Partner', type: 'ally' });
       list.push({ id: 'grid-en1', wrap: gridEls22.en1.closest('.board-wrap'), label: 'Wróg 1', type: 'en1' });
@@ -2059,6 +2110,414 @@
         ctx.fillRect(px, py, cp, cp);
       }
     }
+  }
+
+
+  // ================= KARUZELA (3-8 graczy) =================
+  // n strzela w n+2, ostatni w pierwszego. Po eliminacji cele się przeliczają.
+  const c = {
+    phase: "lobby",      // lobby | placing | playing | ended
+    myIdx: null,         // mój index w players[]
+    players: [],         // [{id, name, alive}]
+    myShips: [],
+    allFleets: {},       // id -> ships[]
+    allShots: {},        // id -> [{r,c,hit,byPlayer}]
+    sunkCells: {},       // id -> Set("r,c")
+    turnIdx: 0,          // indeks w aliveOrder
+    aliveOrder: [],      // uporządkowana lista ID żywych graczy
+    winner: null,
+    boards: [],          // [{id, title, grid, active, target, isMe}] — dynamiczne
+  };
+
+  const hc = {
+    conns: [], assigned: {}, names: {}, ready: {}, fleets: {}, shotHist: {},
+    started: false, over: false,
+  };
+
+  function cReset() {
+    c.phase = "lobby"; c.myIdx = null; c.players = []; c.myShips = [];
+    c.allFleets = {}; c.allShots = {}; c.sunkCells = {}; c.turnIdx = 0;
+    c.aliveOrder = []; c.winner = null; c.boards = [];
+    hc.conns = []; hc.assigned = {}; hc.names = {}; hc.ready = {}; hc.fleets = {};
+    hc.shotHist = {}; hc.started = false; hc.over = false;
+  }
+
+  function cHost() {
+    if (mp.peer) leaveGame();
+    cReset();
+    mp.mode = "carousel";
+    const id = genRoomId();
+    mp.isHost = true; mp.role = "H";
+    showRoomId(id, "Min 3, max 8 graczy. Podaj ID znajomym.");
+    X(true);
+    const peer = new Peer(id, peerOptions());
+    mp.peer = peer;
+    const me = { id: peer.id, name: nick(), alive: true };
+    c.players = [me];
+    hc.names[me.id] = me.name; hc.assigned[me.id] = true;
+
+    peer.on("open", () => {
+      dbg("Karuzela host:", peer.id);
+      peer.on("connection", conn => {
+        conn.on("data", msg => cHandleHostMsg(conn, msg));
+        conn.on("close", () => {
+          const p = c.players.find(p => p.id === conn.peer);
+          if (p) { p.alive = false; cBroadcast({ type: "cPlayerLeft", id: p.id, name: p.name }); }
+          hc.conns = hc.conns.filter(x => x !== conn);
+        });
+        conn.on("error", () => {});
+      });
+    });
+  }
+
+  async function cJoin() {
+    const id = lanIdEl.value.trim();
+    if (!id) { lanStatusEl.textContent = "Wpisz ID pokoju."; return; }
+    if (mp.peer) leaveGame();
+    cReset();
+    mp.mode = "carousel"; mp.isHost = false;
+    lanStatusEl.textContent = "Łączenie z Karuzelą " + id + "…";
+    const peer = new Peer(peerOptions());
+    mp.peer = peer;
+    peer.on("open", () => {
+      dbg("Karuzela guest:", peer.id); mp.role = peer.id;
+      const conn = peer.connect(id);
+      conn.on("open", () => {
+        mp.conn = conn;
+        conn.send({ type: "cJoin", id: peer.id, name: nick() });
+        dbg("Dołączono do karuzeli, wysyłam cJoin");
+      });
+      conn.on("data", msg => cHandleGuestMsg(msg));
+      conn.on("close", () => { lanStatusEl.textContent = "Rozłączono z karuzelą."; cReset(); X(false); });
+    });
+    peer.on("error", e => { dbg("peer err:", e.type); lanStatusEl.textContent = "Błąd: " + e.type; });
+  }
+
+  function cHandleHostMsg(conn, msg) {
+    if (!msg || !msg.type) return;
+    switch (msg.type) {
+      case "cJoin":
+        if (c.players.length >= 8) { conn.send({ type: "cError", text: "Karuzela pełna (max 8)." }); return; }
+        if (hc.assigned[msg.id]) return;
+        hc.assigned[msg.id] = true; hc.names[msg.id] = msg.name;
+        c.players.push({ id: msg.id, name: msg.name, alive: true });
+        hc.conns.push(conn);
+        cBroadcast({ type: "cPlayers", players: c.players.map(p => ({ id: p.id, name: p.name, alive: p.alive })) });
+        renderCarouselBoards();
+        break;
+      case "cPlace":
+        hc.fleets[msg.id] = decodeShips(msg.fleet);
+        cBroadcast({ type: "cFleet", id: msg.id, fleet: msg.fleet });
+        break;
+      case "cReady":
+        hc.ready[msg.id] = true;
+        cBroadcast({ type: "cReadyPlayer", id: msg.id });
+        if (cAllReady()) { cStartGame(); }
+        break;
+      case "cShot":
+        if (hc.over || !hc.started) return;
+        const turnPlayer = c.aliveOrder[c.turnIdx];
+        if (msg.id !== turnPlayer) return;
+        const target = cTarget();
+        if (!target) return;
+        cProcessShot(msg.r, msg.c, msg.id, target);
+        break;
+    }
+  }
+
+  function cHandleGuestMsg(msg) {
+    if (!msg || !msg.type) return;
+    switch (msg.type) {
+      case "cPlayers":
+        c.players = msg.players.map(p => ({ ...p, alive: p.alive !== false }));
+        renderCarouselBoards();
+        break;
+      case "cFleet":
+        c.allFleets[msg.id] = decodeShips(msg.fleet);
+        paintCarouselBoards();
+        break;
+      case "cReadyPlayer":
+        const rp = c.players.find(p => p.id === msg.id); if (rp) rp.ready = true;
+        cBroadcastReady();
+        break;
+      case "cStart":
+        c.phase = "placing";
+        c.players = msg.players.map(p => ({ ...p, alive: true, ready: false }));
+        c.myIdx = c.players.findIndex(p => p.id === mp.role);
+        c.allFleets = {}; c.allShots = {}; c.sunkCells = {};
+        renderCarouselBoards();
+        updatePalette();
+        setStatus("Ustaw swoją flotę…");
+        break;
+      case "cBegin":
+        c.phase = "playing";
+        c.aliveOrder = msg.aliveOrder;
+        c.turnIdx = msg.turnIdx;
+        c.allFleets = {}; for (const [k, v] of Object.entries(msg.fleets)) c.allFleets[k] = decodeShips(v);
+        c.myIdx = c.players.findIndex(p => p.id === mp.role);
+        i.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+        s("btn-random").disabled = true; s("btn-rotate").disabled = true; s("btn-start").disabled = true;
+        renderCarouselBoards();
+        cUpdateTurn();
+        paintCarouselBoards();
+        break;
+      case "cShotResult":
+        cApplyResult(msg);
+        break;
+      case "cPlayerLeft":
+        const lp = c.players.find(p => p.id === msg.id); if (lp) lp.alive = false;
+        c.aliveOrder = c.aliveOrder.filter(x => x !== msg.id);
+        c.turnIdx = c.turnIdx % Math.max(1, c.aliveOrder.length);
+        renderCarouselBoards(); cUpdateTurn(); paintCarouselBoards();
+        break;
+      case "cEnd":
+        c.phase = "ended"; c.winner = msg.winner;
+        setStatus("Zwycięzca: " + (msg.winnerName || msg.winner) + " 🎉", "won");
+        break;
+      case "cError":
+        lanStatusEl.textContent = msg.text || "Błąd karuzeli.";
+        break;
+    }
+  }
+
+  function cAllReady() {
+    if (c.players.length < 3) return false;
+    return c.players.every(p => hc.ready[p.id]);
+  }
+
+  function cBroadcast(msg) {
+    for (const conn of hc.conns) { try { conn.send(msg); } catch {} }
+    if (mp.peer && mp.peer.id) cHandleHostMsg(null, msg); // host też przetwarza
+  }
+
+  function cBroadcastReady() {
+    const readyCount = c.players.filter(p => hc.ready[p.id]).length;
+    lanStatusEl.textContent = "Gotowych: " + readyCount + "/" + c.players.length;
+  }
+
+  function cStartGame() {
+    for (const p of c.players) if (!hc.fleets[p.id]) { cBroadcast({ type: "cError", text: p.name + " nie ustawił floty!" }); return; }
+    cBroadcast({ type: "cStart", players: c.players.map(p => ({ id: p.id, name: p.name })) });
+    c.phase = "placing";
+    for (const p of c.players) {
+      c.allFleets[p.id] = hc.fleets[p.id];
+      c.allShots[p.id] = [];
+      c.sunkCells[p.id] = new Set();
+    }
+    renderCarouselBoards();
+    updatePalette();
+    setStatus("Ustaw swoją flotę…");
+    // czekamy na ready od wszystkich
+    hc.ready = {}; // reset ready dla nowej rundy
+    for (const id of Object.keys(hc.assigned)) hc.ready[id] = false;
+  }
+
+  function cBegin() {
+    // host woła, gdy wszyscy ustawili floty gotowi
+    if (!cAllReady()) return;
+    hc.started = true;
+    c.aliveOrder = c.players.map(p => p.id);
+    c.turnIdx = 0;
+    const fleets = {}; for (const [k, v] of Object.entries(hc.fleets)) fleets[k] = encodeShips(v);
+    cBroadcast({
+      type: "cBegin",
+      aliveOrder: c.aliveOrder,
+      turnIdx: c.turnIdx,
+      fleets: fleets,
+    });
+    c.phase = "playing";
+    for (const [k, v] of Object.entries(hc.fleets)) c.allFleets[k] = v;
+    for (const p of c.players) { c.allShots[p.id] = []; c.sunkCells[p.id] = new Set(); }
+    i.innerHTML = "<div class='subtitle' style='margin:0'>Flota ustawiona ✓</div>";
+    s("btn-random").disabled = true; s("btn-rotate").disabled = true; s("btn-start").disabled = true;
+    renderCarouselBoards();
+    cUpdateTurn();
+    paintCarouselBoards();
+  }
+
+  function cTarget() {
+    const cnt = c.aliveOrder.length;
+    if (cnt < 2) return null;
+    const idx = c.turnIdx;
+    if (cnt >= 2) {
+      // n+2 modulo, dla 2 graczy wzajemnie
+      const targetIdx = cnt === 2 ? (idx + 1) % 2 : (idx + 2) % cnt;
+      return c.aliveOrder[targetIdx];
+    }
+    return c.aliveOrder[(idx + 1) % cnt];
+  }
+
+  function cProcessShot(r, c, shooterId, targetId) {
+    const ships = hc.fleets[targetId];
+    const sh = shipAt(ships, r, c);
+    const hit = !!sh;
+    const key = r + "," + c;
+    if (!hc.shotHist[targetId]) hc.shotHist[targetId] = new Set();
+    if (hc.shotHist[targetId].has(key)) return;
+    hc.shotHist[targetId].add(key);
+
+    let sunk = false, eliminated = false;
+    if (hit) {
+      sh.hit(r, c);
+      if (sh.sunk()) {
+        sunk = true;
+        // sprawdź eliminację
+        if (ships.every(s => s.sunk())) {
+          eliminated = true;
+          const p = c.players.find(p => p.id === targetId);
+          if (p) p.alive = false;
+          c.aliveOrder = c.aliveOrder.filter(x => x !== targetId);
+          if (c.aliveOrder.length <= 1) {
+            const winner = c.aliveOrder[0] || shooterId;
+            hc.over = true;
+            cBroadcast({ type: "cEnd", winner, winnerName: hc.names[winner] || winner });
+            return;
+          }
+        }
+      }
+    }
+
+    if (!hit) {
+      c.turnIdx = (c.turnIdx + 1) % c.aliveOrder.length;
+    }
+    if (c.turnIdx >= c.aliveOrder.length) c.turnIdx = c.turnIdx % c.aliveOrder.length;
+
+    const result = { type: "cShotResult", r, c, hit, sunk, eliminated, targetId, shooterId,
+      turnIdx: c.turnIdx, turnPlayer: c.aliveOrder[c.turnIdx] };
+    cBroadcast(result);
+  }
+
+  function cApplyResult(msg) {
+    const { r, c, hit, sunk, eliminated, targetId, shooterId, turnIdx, turnPlayer } = msg;
+    const key = r + "," + c;
+    if (!c.allShots[targetId]) c.allShots[targetId] = [];
+    c.allShots[targetId].push({ r, c, hit, byPlayer: shooterId });
+    if (hit) u(); else m();
+    if (sunk) {
+      y();
+      if (!c.sunkCells[targetId]) c.sunkCells[targetId] = new Set();
+      const ships = c.allFleets[targetId] || [];
+      for (const s of ships) if (s.sunk()) for (const cell of s.cells) c.sunkCells[targetId].add(cell.r + "," + cell.c);
+    }
+    if (eliminated) {
+      const p = c.players.find(p => p.id === targetId); if (p) p.alive = false;
+      c.aliveOrder = c.aliveOrder.filter(x => x !== targetId);
+      renderCarouselBoards();
+    }
+    c.turnIdx = turnIdx;
+    c.aliveOrder = c.aliveOrder; // keep in sync
+    cUpdateTurn();
+    paintCarouselBoards();
+  }
+
+  function cUpdateTurn() {
+    const turnId = c.aliveOrder[c.turnIdx];
+    for (const b of c.boards) {
+      if (b.gridEl) {
+        b.gridEl.classList.toggle("carousel-turn", b.id === turnId);
+        b.gridEl.classList.toggle("carousel-target", b.id === cTarget());
+        b.gridEl.classList.toggle("carousel-you", b.id === mp.role);
+      }
+    }
+    const tp = c.players.find(p => p.id === turnId);
+    const nm = tp ? (tp.name || tp.id) : "?";
+    setStatus("Kolej: " + nm + (turnId === mp.role ? " (Twój ruch!)" : " — strzela w " + (c.players.find(p => p.id === cTarget())?.name || "?")));
+  }
+
+  function renderCarouselBoards() {
+    const wrap = s("boardsCarousel");
+    wrap.innerHTML = "";
+    c.boards = [];
+    for (const p of c.players) {
+      if (!p.alive && c.phase === "playing") continue; // nie pokazuj wyeliminowanych w trakcie gry
+      const bw = document.createElement("div");
+      bw.className = "board-wrap";
+      const t = document.createElement("div");
+      t.className = "board-title";
+      t.textContent = (p.name || p.id) + (p.id === mp.role ? " (Ty)" : "");
+      bw.appendChild(t);
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.id = "carousel-grid-" + p.id.slice(-6);
+      bw.appendChild(grid);
+      wrap.appendChild(bw);
+      renderBoard(grid, false);
+      // kliknięcia: placing = własna plansza, playing = plansza celu
+      grid.addEventListener("click", e => {
+        const cell = e.target.closest(".cell"); if (!cell) return;
+        const r = +cell.dataset.r, cL = +cell.dataset.c;
+        if (c.phase === "placing" && p.id === mp.role) {
+          tryPlace(r, cL);
+        } else if (c.phase === "playing") {
+          const turnPlayer = c.aliveOrder[c.turnIdx];
+          if (turnPlayer !== mp.role) return;
+          const target = cTarget();
+          if (p.id !== target) return;
+          cShoot(r, cL, target);
+        }
+      });
+      c.boards.push({ id: p.id, grid, title: t, gridEl: grid });
+    }
+    for (const conn of hc.conns) {
+      if (c.phase === "placing" && hc.ready[conn.playerId]) {
+        // show ready marker
+      }
+    }
+    updatePalette();
+    paintCarouselBoards();
+  }
+
+  function paintCarouselBoards() {
+    for (const b of c.boards) {
+      const ships = c.allFleets[b.id] || [];
+      const shots = c.allShots[b.id] || [];
+      const sunk = c.sunkCells[b.id] || new Set();
+      const cells = b.gridEl.querySelectorAll(".cell");
+      for (const cell of cells) {
+        const r = +cell.dataset.r, cL = +cell.dataset.c;
+        const key = r + "," + cL;
+        const ship = shipAt(ships, r, cL);
+        const shot = shots.find(s => s.r === r && s.c === cL);
+        cell.className = "cell" + (ship ? " ship" : "");
+        if (shot && shot.hit) {
+          cell.classList.add(sunk.has(key) ? "sunk" : "hit");
+        } else if (shot) {
+          cell.classList.add("miss");
+        }
+      }
+    }
+    cUpdateTurn();
+    updatePalette();
+    drawMobMinis();
+  }
+
+  function cNewGame() {
+    cReset();
+    s("boardsCarousel").innerHTML = "";
+    i.innerHTML = "";
+    updatePalette();
+    setStatus("Karuzela — utwórz lub dołącz do gry");
+  }
+
+  function cShoot(r, cL, targetId) {
+    if (mp.isHost) {
+      cProcessShot(r, cL, mp.peer.id, targetId);
+    } else {
+      mp.send({ type: "cShot", id: mp.role, r, c: cL });
+    }
+  }
+
+  function encodeShips(ships) {
+    return ships.map(s => ({ cells: s.cells.map(c => [c.r, c.c]), hits: [...s.hitSet] }));
+  }
+
+  function decodeShips(data) {
+    return (data || []).map(s => {
+      const cells = (s.cells || []).map(([r, c]) => ({ r, c }));
+      const sh = makeShip(cells);
+      for (const h of (s.hits || [])) sh.hitSet.add(h);
+      return sh;
+    });
   }
 
 
