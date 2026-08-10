@@ -1,11 +1,14 @@
 package pl.ku84.statki
 
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import android.os.Bundle
 import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
@@ -28,12 +31,24 @@ class MainActivity : AppCompatActivity() {
             }
             webChromeClient = WebChromeClient()
             webViewClient = object : WebViewClient() {
+                @Deprecated("Deprecated in Java")
+                override fun onReceivedError(
+                    view: WebView, errorCode: Int, description: String, failingUrl: String
+                ) {
+                    if (!urlFailed) { urlFailed = true; loadUrl("file:///android_asset/game.html") }
+                }
                 override fun onReceivedError(
                     view: WebView, request: WebResourceRequest, error: WebResourceError
                 ) {
-                    if (!urlFailed) {
-                        urlFailed = true
-                        loadUrl("file:///android_asset/game.html")
+                    if (!urlFailed && request.isForMainFrame) {
+                        urlFailed = true; loadUrl("file:///android_asset/game.html")
+                    }
+                }
+                override fun onReceivedHttpError(
+                    view: WebView, request: WebResourceRequest, response: WebResourceResponse
+                ) {
+                    if (!urlFailed && request.isForMainFrame && response.statusCode >= 400) {
+                        urlFailed = true; loadUrl("file:///android_asset/game.html")
                     }
                 }
             }
@@ -42,10 +57,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(webView)
 
         if (android.os.Build.VERSION.SDK_INT >= 30) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.apply {
-                hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-                systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            WindowInsetsControllerCompat(window, webView).apply {
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
             @Suppress("DEPRECATION")

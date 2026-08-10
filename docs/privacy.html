@@ -15,14 +15,29 @@ a{color:#f4a261}code{background:rgba(255,255,255,.1);padding:2px 6px;border-radi
 <h2>1. Jakie dane zbieramy?</h2>
 <p>Gra <strong>nie wymaga rejestracji, nie tworzy profili użytkowników ani nie przechowuje danych identyfikacyjnych</strong> (imię, adres e-mail, hasło itp.). Wszystkie dane rozgrywki (układ statków, historia ruchów) istnieją wyłącznie w pamięci przeglądarki podczas trwania sesji i są usuwane po jej zakończeniu.</p>
 
-<h2>2. Tryb online — połączenia sieciowe</h2>
-<p>W trybach gry przez internet (2 graczy, 2v2, Karuzela) wykorzystywane są następujące usługi sieciowe niezbędne do zestawienia połączenia między graczami:</p>
+<h2>2. Tryb online — infrastruktura i przetwarzanie danych</h2>
+<p>W trybach gry przez internet (2 graczy, 2v2, Karuzela) wykorzystywane są następujące usługi zewnętrzne niezbędne do działania gry:</p>
+
+<h3>2a. Serwer sygnalizacyjny</h3>
+<p><strong>Render</strong> (<code>statki-peer-server.onrender.com</code>) — serwer PeerJS pośredniczy w wymianie danych technicznych (identyfikatory peerów, SDP/ICE candidates) potrzebnych do zestawienia bezpośredniego połączenia WebRTC. Logi serwera (zdarzenia połączeń/rozłączeń) są dostępne w panelu administracyjnym Render.</p>
+
+<h3>2b. Serwery STUN</h3>
+<p>Używane do ustalenia publicznego adresu IP gracza, niezbędnego do zestawienia połączeń P2P:</p>
 <ul>
-<li><strong>Serwer sygnalizacyjny</strong> (<code>statki-peer-server.onrender.com</code>) — pośredniczy w wymianie technicznych danych potrzebnych do nawiązania bezpośredniego połączenia WebRTC.</li>
-<li><strong>Serwery TURN/STUN</strong> (<code>global.relay.metered.ca</code>) — pomagają w zestawieniu połączenia, gdy gracze znajdują się za zaporami sieciowymi (NAT/firewall).</li>
+<li><code>stun.l.google.com:19302</code> (Google)</li>
+<li><code>stun.cloudflare.com:3478</code> (Cloudflare)</li>
+<li><code>stunserver.stunprotocol.org:3478</code></li>
 </ul>
-<p>Usługi te mogą przetwarzać tymczasowe dane techniczne, takie jak <strong>adres IP</strong>, który jest niezbędny do zestawienia połączeń sieciowych. Adres IP nie jest przez nas przechowywany ani wykorzystywany w żadnym innym celu.</p>
-<p>Ruch danych gry (ruchy, pozycje statków) jest <strong>szyfrowany</strong> (DTLS) i przepływa bezpośrednio między urządzeniami graczy — nie przechodzi przez żaden serwer pośredniczący.</p>
+
+<h3>2c. Serwery TURN (relay)</h3>
+<p>Gdy bezpośrednie połączenie P2P nie jest możliwe (restrykcyjny NAT, firewall), ruch gry jest <strong>przekazywany przez serwer TURN</strong>. Wykorzystywany jest serwer TURN dostarczany przez:</p>
+<ul>
+<li><strong>Metered.ca</strong> (<code>global.relay.metered.ca</code>, porty 80/443, TCP/UDP/TLS) — darmowy plan 20 GB/mies. Ruch przez TURN jest <strong>szyfrowany</strong> (DTLS) — serwer TURN nie może odczytać treści rozgrywki, jedynie przekazuje zaszyfrowane pakiety między graczami.</li>
+</ul>
+<p>Podczas korzystania z TURN, serwer Metered.ca przetwarza tymczasowo adres IP gracza w celu przekazywania ruchu sieciowego.</p>
+
+<h3>2d. Dane techniczne</h3>
+<p>Wszystkie powyższe usługi mogą przetwarzać tymczasowe dane techniczne, takie jak <strong>adres IP</strong>, który jest niezbędny do zestawienia i utrzymania połączeń sieciowych. Adres IP nie jest przez nas przechowywany ani wykorzystywany w żadnym innym celu.</p>
 
 <h2>3. Przechowywanie lokalne</h2>
 <p>Gra nie wykorzystuje plików cookie ani trwałego magazynu lokalnego (localStorage). Wszystkie dane istnieją wyłącznie w pamięci operacyjnej podczas aktywnej sesji gry.</p>
