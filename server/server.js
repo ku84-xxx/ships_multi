@@ -16,12 +16,4 @@ const server = PeerServer({
   proxied: true,
 });
 
-server.on("connection", client => {
-  console.log("Połączono:", client.getId());
-});
-
-server.on("disconnect", client => {
-  console.log("Rozłączono:", client.getId());
-});
-
 console.log("Serwer PeerJS nasłuchuje na porcie", PORT);

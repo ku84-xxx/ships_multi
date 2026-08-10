@@ -1,0 +1,16 @@
+Instrukcja dla zespolu Google Play Review
+
+Aplikacja nie wymaga konta, logowania, hasla ani kodu dostepu.
+
+Najprostszy sposob weryfikacji:
+1. Uruchom aplikacje.
+2. Wybierz tryb gry solo.
+3. Rozstaw flote recznie lub uzyj losowego rozmieszczenia.
+4. Rozpocznij gre i oddawaj strzaly na planszy przeciwnika.
+
+Tryby online sa funkcja dodatkowa:
+- 1v1 wymaga dwoch graczy/urzadzen i identyfikatora pokoju.
+- 2v2 wymaga czterech graczy/urzadzen.
+- Karuzela obsluguje 3–8 graczy.
+
+Do sprawdzenia podstawowej funkcjonalnosci aplikacji nie jest wymagany drugi uzytkownik, poniewaz pelna rozgrywka solo jest dostepna od razu.

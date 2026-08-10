@@ -1,6 +1,10 @@
-// publish.js — buduje plik publikacyjny (index.html) ze źródła (statki.html).
-// Minifikuje CSS i obfuskuje JS (terser), dzięki czemu kod nie jest czytelny,
-// a gra nadal działa identycznie. Uruchomienie: npm run publish
+// publish.js — buduje plik publikacyjny (index.html) ze zrodla (statki.html).
+// Minifikuje CSS i obfuskuje JS (terser). Generuje rownoczesnie:
+//   index.html   — lokalny podglad
+//   docs/index.html — GitHub Pages
+//   android/app/src/main/assets/game.html — fallback WebView w APK
+// Kopiuje rowniez privacy.html do docs/ i android/assets/
+// Uruchomienie: npm run publish
 
 const fs = require("fs");
 const path = require("path");
@@ -66,7 +70,6 @@ async function main() {
   while (pos < js.length) {
     if (pos + 7500 >= js.length) { wrapped += js.slice(pos); break; }
     let end = Math.min(pos + 7500, js.length);
-    // szukaj ostatniego średnika w oknie, nie rozcinaj stringów
     let semi = js.lastIndexOf(";", end);
     if (semi > pos + 2000) end = semi + 1;
     wrapped += js.slice(pos, end) + "\n";
@@ -79,15 +82,27 @@ async function main() {
   out = out.slice(0, scriptStart) + "<script>" + wrapped + "</script>" + out.slice(scriptStart + appScript[0].length);
   out = out.replace(/<!--[\s\S]*?-->/g, "");
 
+  // WWW
   fs.writeFileSync(path.join(__dirname, "index.html"), out);
-  fs.mkdirSync(path.join(__dirname, "docs"), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, "docs", "index.html"), out);
+  const docsDir = path.join(__dirname, "docs");
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(path.join(docsDir, "index.html"), out);
 
-  const jsCheck = js.match(/\(\(\)=>\{[\s\S]*\}\)\(\);/);
-  console.log("OK -> index.html + docs/index.html (" + (out.length / 1024).toFixed(1) + " kB)");
+  // Android WebView fallback — zawsze ten sam build co WWW
+  const androidAssetsDir = path.join(__dirname, "android", "app", "src", "main", "assets");
+  fs.mkdirSync(androidAssetsDir, { recursive: true });
+  fs.writeFileSync(path.join(androidAssetsDir, "game.html"), out);
+
+  // Privacy policy — jedno zrodlo dla WWW i Androida
+  const privacySrc = path.join(__dirname, "privacy.html");
+  if (!fs.existsSync(privacySrc)) throw new Error("brak privacy.html w katalogu glownym");
+  fs.copyFileSync(privacySrc, path.join(docsDir, "privacy.html"));
+  fs.copyFileSync(privacySrc, path.join(androidAssetsDir, "privacy.html"));
+
+  console.log("OK -> WWW + docs + Android fallback (" + (out.length / 1024).toFixed(1) + " kB)");
 }
 
 main().catch(err => {
-  console.error("Błąd:", err.message);
+  console.error("ERROR:", err.message);
   process.exit(1);
 });

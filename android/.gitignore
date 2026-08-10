@@ -7,3 +7,5 @@
 .gradle/
 statki-release.keystore
 keystore.properties
+*.apk
+*.aab

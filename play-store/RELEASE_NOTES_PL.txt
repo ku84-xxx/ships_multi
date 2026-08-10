@@ -1,0 +1,6 @@
+Pierwsze wydanie testowe.
+- Gra solo w klasyczne statki.
+- Tryb online 1v1.
+- Tryb druzynowy 2v2.
+- Karuzela dla 3–8 graczy.
+- Lokalny fallback gry przy problemach z dostepem do strony.
